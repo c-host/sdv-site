@@ -19,7 +19,7 @@ collections:
     files:
       - label: "Info page (edit this)"
         name: "info"
-        file: "content/info.yml"
+        file: "content/info.md"
         fields:
           - label: "Read this first"
             name: "client_help"
@@ -43,10 +43,10 @@ collections:
             hint: "This is just guidance inside the CMS; you can leave it as-is."
 
           - label: "Bio"
-            name: "bio_markdown"
+            name: "body"
             widget: "markdown"
             required: true
-            hint: "Main bio text shown on the Info page. Keep at least a few paragraphs."
+            hint: "Main bio text shown on the Info page. Use bold/italics/links freely."
 
           - label: "Press"
             name: "press"

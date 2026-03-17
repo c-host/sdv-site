@@ -78,6 +78,16 @@
     return blocks.join('\n');
   }
 
+  function parseFrontmatter(md) {
+    var s = String(md || '').replace(/\r\n/g, '\n');
+    if (!s.startsWith('---\n')) return { data: {}, body: s };
+    var end = s.indexOf('\n---\n', 4);
+    if (end === -1) return { data: {}, body: s };
+    var fmRaw = s.slice(4, end);
+    var body = s.slice(end + 5);
+    return { data: parseYaml(fmRaw) || {}, body: body.replace(/^\n+/, '') };
+  }
+
   function parseYaml(text) {
     var lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
     var i = 0;
@@ -570,13 +580,15 @@
     var bioHost = document.getElementById('bio-content');
     if (!host && !bioHost) return;
     var prefix = rootPrefix();
-    var url = prefix + 'content/info.yml';
-    var yml = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
-    var data = parseYaml(yml) || {};
+    var url = prefix + 'content/info.md';
+    var raw = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
+    var parsed = parseFrontmatter(raw);
+    var data = parsed.data || {};
+    var bioMd = parsed.body || '';
 
     if (bioHost) {
-      bioHost.innerHTML = data.bio_markdown
-        ? renderMarkdown(String(data.bio_markdown))
+      bioHost.innerHTML = bioMd
+        ? renderMarkdown(String(bioMd))
         : '<p>Bio not found.</p>';
     }
 
