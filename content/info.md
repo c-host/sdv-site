@@ -29,6 +29,10 @@ press:
     url: https://kunstkritikk.com/portrait-of-a-generation/
     description: At the Copenhagen art festival Under, the young scene is clearly in
       control. But is it also a bit too self-aware?
+  - title: Prot
+    url: https://kunstkritikk.com/portrait-of-a-generation/
+    description: At the Copenhagen art festival Under, the young scene is clearly in
+      control. But is it also a bit too self-aware?
 cv:
   label: Download CV (PDF)
   file: documents/sdv-cv.pdf
