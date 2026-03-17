@@ -10,7 +10,7 @@
     #cms-help-banner {
       position: sticky;
       top: 0;
-      z-index: 9999;
+      z-index: 50;
       background: #111827;
       color: #f9fafb;
       border-bottom: 1px solid rgba(255, 255, 255, 0.12);
@@ -42,7 +42,39 @@
       cursor: pointer;
     }
     #cms-help-banner button:hover { background: rgba(255, 255, 255, 0.14); }
-    #cms-help-banner.collapsed .text { display: none; }
+    #cms-help-banner.collapsed .text {
+      display: none;
+    }
+    #cms-help-banner.collapsed .inner {
+      align-items: center;
+      padding-top: 6px;
+      padding-bottom: 6px;
+    }
+    #cms-help-banner .summary {
+      display: none;
+      color: rgba(249, 250, 251, 0.92);
+    }
+    #cms-help-banner.collapsed .summary {
+      display: inline;
+    }
+
+    /* Decap CMS: prevent header/nav overlapping Publish controls on narrow screens. */
+    [class*="AppHeader"] {
+      flex-wrap: wrap !important;
+      height: auto !important;
+      min-height: 56px;
+    }
+    [class*="AppHeaderNav"] {
+      flex: 1 1 auto !important;
+      min-width: 280px;
+    }
+    [class*="AppHeaderActions"],
+    [class*="AppHeaderContent"] {
+      flex: 0 0 auto !important;
+    }
+    [class*="AppHeaderActions"] {
+      margin-left: auto !important;
+    }
   </style>
 </head>
 
@@ -56,6 +88,7 @@
         If something looks wrong, click Cancel—don’t delete your text.
       </div>
       <div class="actions">
+        <span class="summary">Need help? Expand for the editing guide.</span>
         <a href="https://unrivaled-pasca-4201ab.netlify.app/" target="_blank" rel="noopener">View live</a>
         <button type="button" id="cms-help-toggle" aria-expanded="true">Hide help</button>
       </div>
@@ -75,8 +108,12 @@
         try { localStorage.setItem("sdv_cms_help_collapsed", collapsed ? "1" : "0"); } catch (e) {}
       }
 
-      var initial = false;
-      try { initial = localStorage.getItem("sdv_cms_help_collapsed") === "1"; } catch (e) {}
+      // Default to collapsed so the editor has maximum space.
+      var initial = true;
+      try {
+        var saved = localStorage.getItem("sdv_cms_help_collapsed");
+        initial = saved === null ? true : saved === "1";
+      } catch (e) {}
       setCollapsed(initial);
 
       toggle.addEventListener("click", function () {
