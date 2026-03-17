@@ -1,0 +1,141 @@
+backend:
+  name: git-gateway
+  branch: main
+
+media_folder: "images/uploads"
+public_folder: "/images/uploads"
+
+site_url: ""
+display_url: ""
+
+collections:
+  - name: "info"
+    label: "Info page"
+    files:
+      - label: "Links & CV"
+        name: "links"
+        file: "content/info.yml"
+        fields:
+          - { label: "Bio", name: "bio_markdown", widget: "markdown", required: false }
+          - label: "Press"
+            name: "press"
+            widget: "list"
+            required: false
+            fields:
+              - { label: "Title", name: "title", widget: "string" }
+              - { label: "URL", name: "url", widget: "string", required: false }
+              - { label: "Description", name: "description", widget: "text", required: false }
+          - label: "CV"
+            name: "cv"
+            widget: "object"
+            fields:
+              - { label: "Link label", name: "label", widget: "string", required: false }
+              - { label: "PDF file", name: "file", widget: "string", required: false }
+              - { label: "URL (optional)", name: "url", widget: "string", required: false }
+
+  - name: "captions"
+    label: "Captions (Abstraction Mode)"
+    files:
+      - label: "Captions"
+        name: "captions"
+        file: "content/captions.yml"
+        fields:
+          - label: "Captions"
+            name: "captions"
+            widget: "list"
+            fields:
+              - { label: "Project", name: "project", widget: "number", min: 1, max: 3 }
+              - { label: "Text", name: "text", widget: "string" }
+
+  - name: "projects"
+    label: "Projects"
+    files:
+      - label: "Project 1"
+        name: "project1"
+        file: "content/projects/the-spontaneous-dance-falls.yml"
+        fields:
+          - { label: "HTML title (browser tab)", name: "page_title", widget: "string", required: false }
+          - { label: "Header title (page H2)", name: "header_title", widget: "string", required: false }
+          - { label: "Title (legacy fallback)", name: "title", widget: "string" }
+          - { label: "Overview", name: "overview_markdown", widget: "markdown" }
+          - label: "Materials (structured, for filters/icons)"
+            name: "materials"
+            widget: "list"
+            required: false
+            field: { label: "Material", name: "material", widget: "string" }
+          - label: "Home materials (curated categories)"
+            name: "home_materials"
+            widget: "list"
+            required: false
+            field: { label: "Material (home)", name: "material", widget: "string" }
+          - { label: "Materials", name: "materials_markdown", widget: "markdown", required: false }
+          - { label: "Enable immersive link (magnifier on overview page)", name: "immersive_enabled", widget: "boolean", default: true }
+          - label: "Falls (timeline panels)"
+            name: "falls"
+            widget: "list"
+            fields:
+              - { label: "Label", name: "label", widget: "string" }
+              - { label: "Type (hover)", name: "type", widget: "string", required: false }
+              - { label: "Details (hover)", name: "details", widget: "text", required: false }
+              - label: "Images"
+                name: "images"
+                widget: "list"
+                field: { label: "Image", name: "image", widget: "image" }
+
+      - label: "Project 2"
+        name: "project2"
+        file: "content/projects/under-the-needles-eye.yml"
+        fields:
+          - { label: "HTML title (browser tab)", name: "page_title", widget: "string", required: false }
+          - { label: "Header title (page H2)", name: "header_title", widget: "string", required: false }
+          - { label: "Title (legacy fallback)", name: "title", widget: "string" }
+          - { label: "Overview", name: "overview_markdown", widget: "markdown" }
+          - label: "Materials (structured, for filters/icons)"
+            name: "materials"
+            widget: "list"
+            required: false
+            field: { label: "Material", name: "material", widget: "string" }
+          - label: "Home materials (curated categories)"
+            name: "home_materials"
+            widget: "list"
+            required: false
+            field: { label: "Material (home)", name: "material", widget: "string" }
+          - { label: "Materials (overview section)", name: "materials_markdown", widget: "markdown", required: false }
+          - { label: "Enable immersive link (magnifier on overview page)", name: "immersive_enabled", widget: "boolean", default: true }
+          - label: "Links"
+            name: "links"
+            widget: "list"
+            required: false
+            fields:
+              - { label: "Label", name: "label", widget: "string" }
+              - { label: "URL", name: "url", widget: "string" }
+          - label: "Gallery images"
+            name: "gallery"
+            widget: "list"
+            field: { label: "Image", name: "image", widget: "image" }
+
+      - label: "Project 3"
+        name: "project3"
+        file: "content/projects/overlocked.yml"
+        fields:
+          - { label: "HTML title (browser tab)", name: "page_title", widget: "string", required: false }
+          - { label: "Header title (page H2)", name: "header_title", widget: "string", required: false }
+          - { label: "Title (legacy fallback)", name: "title", widget: "string" }
+          - { label: "Overview", name: "overview_markdown", widget: "markdown" }
+          - label: "Materials (structured, for filters/icons)"
+            name: "materials"
+            widget: "list"
+            required: false
+            field: { label: "Material", name: "material", widget: "string" }
+          - label: "Home materials (curated categories)"
+            name: "home_materials"
+            widget: "list"
+            required: false
+            field: { label: "Material (home)", name: "material", widget: "string" }
+          - { label: "Materials (overview section)", name: "materials_markdown", widget: "markdown", required: false }
+          - { label: "Enable immersive link (magnifier on overview page)", name: "immersive_enabled", widget: "boolean", default: true }
+          - label: "Gallery images"
+            name: "gallery"
+            widget: "list"
+            field: { label: "Image", name: "image", widget: "image" }
+

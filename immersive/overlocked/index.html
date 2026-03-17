@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SDV - overlocked</title>
+  <link rel="stylesheet" href="../../css/styles.css" />
+</head>
+
+<body>
+  <section class="view view--immersive immersive-page" data-project="3">
+    <nav class="immersive-nav">
+      <a href="../../project/overlocked/" class="immersive-back-overview" aria-label="Back to project overview">←
+        Overview</a>
+    </nav>
+
+    <div id="immersive-content" class="immersive-main" aria-label="Immersive content">
+      <div class="immersive-inner" id="immersive-inner">
+        <blockquote class="immersive-quote"></blockquote>
+      </div>
+    </div>
+
+    <button type="button" class="immersive-abstraction-btn" id="abstraction-btn"
+      aria-label="Abstract view (inset + captions)">
+      <svg class="icon-abstraction" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M4 4h16v16H4z" />
+        <path d="M9 9h6v6H9z" />
+      </svg>
+    </button>
+
+    <div class="abstraction-backdrop" id="abstraction-backdrop" hidden aria-hidden="true">
+      <img id="abstraction-backdrop-img" src="" alt="" />
+      <video id="abstraction-backdrop-video" class="abstraction-backdrop-video" autoplay loop muted playsinline
+        aria-hidden="true"></video>
+    </div>
+    <button type="button" class="immersive-abstraction-btn backdrop-zoom-btn" id="backdrop-zoom-btn" hidden
+      aria-label="Zoom into this project">
+      <svg class="icon-abstraction icon-magnifier" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="1.5">
+        <circle cx="10" cy="10" r="5" />
+        <path d="M14 14l5 5" />
+      </svg>
+    </button>
+
+    <div class="immersive-abstraction" id="immersive-abstraction" aria-hidden="true">
+      <div class="abstraction-inset" id="abstraction-inset">
+        <div class="immersive-inner" id="immersive-inner-inset">
+          <blockquote class="immersive-quote"></blockquote>
+        </div>
+      </div>
+      <div class="abstraction-caption-single" id="abstraction-caption-single">
+        <button type="button" class="caption-current" id="caption-current" aria-label="View project"></button>
+      </div>
+    </div>
+  </section>
+
+  <script src="../../js/content-loader.js"></script>
+  <script src="../../js/app.js"></script>
+</body>
+
+</html>

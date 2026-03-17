@@ -1,0 +1,1554 @@
+/* --- Variables (neutral, minimal) --- */
+:root {
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --muted: #6b6b6b;
+  --line: #ccc;
+  --gap: 1rem;
+  --gap-large: 2.5rem;
+  --radius: 2px;
+  --font: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --inset: 20pt;
+  --abstraction-margin: 48pt;
+}
+
+@font-face {
+  font-family: "JL Joseleen";
+  src: url("../fonts/JLJoseleen-2018Reg.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Adieu Bold";
+  src: url("../fonts/Adieu-Bold.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Grotta Light";
+  src: url("../fonts/Grotta-light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Grotta Semibold";
+  src: url("../fonts/Grotta-semibold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* --- Reset & base --- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--bg);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+p {
+  font-family: "Grotta Medium", var(--font);
+  font-size: 16px;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* --- Views: one visible at a time --- */
+.view {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.view[hidden] {
+  display: none !important;
+}
+
+/* ========== SPLASH ========== */
+.view--splash {
+  align-items: center;
+  justify-content: center;
+}
+
+.splash-line {
+  position: absolute;
+  background: var(--line);
+}
+
+.splash-line--vertical {
+  width: 1px;
+  height: 100%;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.splash-line--horizontal {
+  display: none;
+  width: 100%;
+  height: 1px;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+
+@media (max-width: 599px) {
+  .splash-line--vertical {
+    display: none;
+  }
+
+  .splash-line--horizontal {
+    display: block;
+  }
+}
+
+.splash-image-wrap {
+  position: relative;
+  z-index: 1;
+  padding: 0;
+  border: 2px solid var(--line);
+  background: none;
+  cursor: pointer;
+}
+
+.splash-image {
+  width: 180px;
+  height: 180px;
+  object-fit: cover;
+}
+
+@media (min-width: 600px) {
+  .splash-image {
+    width: 240px;
+    height: 240px;
+  }
+}
+
+/* ========== HOME ========== */
+.view--home {
+  align-items: center;
+  justify-content: center;
+  padding: var(--gap);
+}
+
+.home-info-link {
+  position: absolute;
+  top: var(--gap);
+  right: var(--gap);
+  color: var(--fg);
+  text-decoration: none;
+  font-size: 1.5rem;
+  z-index: 2;
+}
+
+@media (max-width: 599px) {
+
+  /* Keep the info icon off the Materials row on small screens. */
+  .home-info-link {
+    top: 50%;
+    right: var(--gap);
+    transform: translateY(-50%);
+    width: 2.25rem;
+    height: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+}
+
+.home-material-filter {
+  position: absolute;
+  top: var(--gap);
+  left: var(--gap);
+  right: calc(var(--gap) + 2.25rem);
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  pointer-events: auto;
+  /* Never overlap the top-right info icon; allow ellipsis instead */
+  max-width: none;
+  flex-direction: column;
+}
+
+.home-material-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-height: 1.2rem;
+}
+
+.home-material-title {
+  font-family: "Grotta Semibold", var(--font);
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.home-material-status {
+  font-family: "Grotta Medium", var(--font);
+  font-size: 0.9rem;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.home-material-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.home-material-btn {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  padding: 4px;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.home-material-btn:hover {
+  background: rgba(0, 0, 0, .04);
+}
+
+.home-material-btn.is-on {
+  background: rgba(0, 0, 0, .9);
+  color: #f5f5f5;
+}
+
+.home-material-btn:focus-visible {
+  outline: 2px solid rgba(0, 0, 0, .4);
+  outline-offset: 2px;
+}
+
+.home-material-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.home-line {
+  position: absolute;
+  background: var(--line);
+}
+
+.home-line--vertical {
+  width: 1px;
+  height: 100%;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.home-line--horizontal {
+  display: none;
+}
+
+@media (max-width: 599px) {
+  .home-line--vertical {
+    display: none;
+  }
+
+  .home-line--horizontal {
+    display: block;
+    width: 100%;
+    height: 1px;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+  }
+}
+
+.home-main {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Image + zoom: always dead center, never move */
+.home-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gap);
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+
+@media (max-width: 599px) {
+  .home-center {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.home-image-wrap {
+  flex-shrink: 0;
+}
+
+.home-image-wrap img {
+  width: 200px;
+  height: 200px;
+  object-fit: cover;
+  border: 2px solid var(--line);
+}
+
+@media (min-width: 600px) {
+  .home-image-wrap img {
+    width: clamp(200px, 25vw, 280px);
+    height: clamp(200px, 25vw, 280px);
+  }
+}
+
+.home-zoom-btn {
+  padding: 6px 6.8px 5px 7px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.home-zoom-btn .icon-magnifier {
+  width: 24px;
+  height: 24px;
+}
+
+@media (min-width: 600px) {
+  .home-zoom-btn {
+    order: 1;
+  }
+}
+
+@media (max-width: 599px) {
+  .home-zoom-btn {
+    margin-left: var(--gap);
+  }
+}
+
+/* Titles: full width of one side of the line, no wrap, no intersection with image */
+.home-projects {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: var(--gap);
+  box-sizing: border-box;
+}
+
+@media (min-width: 600px) {
+  .home-projects {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    padding-right: var(--gap);
+    box-sizing: border-box;
+    justify-content: center;
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 599px) {
+  .home-projects {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding-top: 52vh;
+    padding-bottom: 0;
+    padding-right: 0;
+    padding-left: 0;
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
+/* Big impact titles: law-fragment style, all caps, no line wrap */
+.home-project {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--fg);
+  cursor: pointer;
+  text-align: inherit;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: color 0.2s ease-out;
+  font-size: clamp(1rem, 2.8vw, 1.5rem);
+}
+
+.home-project-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-project-material-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0.9;
+  flex: 0 0 auto;
+}
+
+.home-project.is-active .home-project-material-icons {
+  opacity: 1;
+}
+
+@media (min-width: 600px) {
+  .home-project {
+    /* Slightly smaller so longest title stays left of vertical line before mobile */
+    font-size: clamp(1rem, 2vw, 1.45rem);
+  }
+}
+
+@media (max-width: 599px) {
+  .home-project {
+    font-size: clamp(0.95rem, 4.6vw, 1.35rem);
+
+    max-width: 100%;
+  }
+}
+
+.home-project:hover {
+  color: var(--muted);
+}
+
+.home-project.is-active {
+  background: rgba(0, 0, 0, .9);
+  color: #f5f5f5;
+}
+
+/* ========== INFO (split: bio, links, cv) ========== */
+.view--info {
+  flex-direction: column;
+}
+
+.info-back {
+  flex-shrink: 0;
+  padding: var(--gap);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.info-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+@media (max-width: 599px) {
+  .info-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+}
+
+.info-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+}
+
+.info-pane--right {
+  border-right: none;
+  border-left: 1px solid var(--line);
+}
+
+@media (max-width: 599px) {
+  .info-pane {
+    border-right: none;
+    border-left: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .info-pane--right {
+    border-left: none;
+  }
+}
+
+.info-pane h2 {
+  flex-shrink: 0;
+  margin: 0;
+  padding: var(--gap);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.info-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 var(--gap-large) var(--gap-large) var(--gap-large);
+}
+
+/* Hide scrollbars on main views (home, overview, immersive, info) while keeping abstraction inset scroll visible */
+.view,
+.info-scroll,
+.project-scroll,
+.immersive-main {
+  -ms-overflow-style: none;
+  /* IE/Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.view::-webkit-scrollbar,
+.info-scroll::-webkit-scrollbar,
+.project-scroll::-webkit-scrollbar,
+.immersive-main::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.info-scroll p {
+  margin: 0 0 0.75rem;
+}
+
+/* ========== PROJECT OVERVIEW ========== */
+.view--project {
+  flex-direction: column;
+}
+
+.project-back {
+  flex-shrink: 0;
+  padding: 1rem 1.25rem 0.75rem 1.5rem;
+  color: var(--fg);
+  text-decoration: none;
+  font-family: "Grotta Semibold", var(--font);
+}
+
+.project-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.project-overview-loading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+@media (max-width: 599px) {
+  .project-split {
+    position: relative;
+    grid-template-columns: 1fr;
+    /* Mobile focus modes (25% / 50% / 75%) */
+    grid-template-rows: var(--split) calc(100% - var(--split));
+    transition: grid-template-rows 260ms ease;
+  }
+
+  /* Draw the split line from one single source of truth. */
+  .project-split::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: var(--split, 50%);
+    height: 1px;
+    background: var(--line);
+    transform: translateY(-0.5px);
+    pointer-events: none;
+    z-index: 3;
+  }
+}
+
+.project-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+}
+
+.project-pane--images {
+  border-right: none;
+  border-left: 1px solid var(--line);
+}
+
+@media (max-width: 599px) {
+  .project-pane {
+    border-right: none;
+    border-left: none;
+    /* The split line is rendered by .project-split::after for pixel-perfect alignment. */
+    border-bottom: none;
+  }
+
+  .project-pane--images {
+    border-left: none;
+  }
+}
+
+.project-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2.5rem 2.5rem 0rem 2.5rem;
+  padding-top: 0;
+}
+
+/* Give the text column a bit more breathing room without changing the image column. */
+.project-pane--text .project-scroll {
+  padding-left: calc(var(--gap-large) * 1.5);
+  padding-right: calc(var(--gap-large) * 1.5);
+}
+
+.project-scroll h2 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 0.25rem;
+  padding-bottom: 0.5rem;
+  font-size: 1.25rem;
+  background: var(--bg);
+  font-family: "Grotta Semibold", var(--font);
+  font-weight: 600;
+}
+
+.project-scroll h3 {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 1rem;
+  font-family: "Grotta Semibold", var(--font);
+  font-weight: 600;
+}
+
+.project-scroll p {
+  margin: 0 0 0.75rem;
+}
+
+.project-images {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* Default project galleries (single list) must remain vertically scrollable. */
+.project-scroll.project-images {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* FALL galleries: the outer column doesn't scroll; each panel owns vertical scroll. */
+.project-scroll.project-images.has-falls {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.project-images img {
+  width: 100%;
+  display: block;
+}
+
+.project-zoom-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--split, 50%);
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.project-zoom-wrap .project-zoom-btn {
+  pointer-events: auto;
+}
+
+.project-zoom-btn {
+  padding: 1rem 1rem 0.75rem 1rem;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.project-zoom-btn .icon-magnifier {
+  width: 24px;
+  height: 24px;
+}
+
+@media (max-width: 599px) {
+
+  /* On mobile, zoom controls are anchored to .project-split (not the viewport). */
+
+  .project-pane--text .project-scroll {
+    padding-bottom: calc(var(--gap-large) * 1.8);
+  }
+
+  .project-pane--images .project-scroll {
+    padding-top: calc(var(--gap-large) * 1.8);
+  }
+
+  /* If the image column has an internal timeline, don't push it down so far.
+     The timeline itself is sticky; extra top padding just wastes image space. */
+  .project-pane--images .project-scroll.project-images {
+    padding-top: var(--gap-large);
+  }
+}
+
+@media (max-width: 599px) {
+
+  /* Split mode variables live on the shared project view so the overlay can follow. */
+  .view--project {
+    --split: 50%;
+  }
+
+  .view--project[data-split="balanced"] {
+    --split: 50%;
+  }
+
+  .view--project[data-split="text"] {
+    --split: 25%;
+  }
+
+  .view--project[data-split="images"] {
+    --split: 75%;
+  }
+
+  .project-zoom-controls {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+  }
+
+  /* Mobile: make the magnifier a consistent square so its visual center is stable. */
+  .project-zoom-btn {
+    width: 3rem;
+    height: 3rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .project-zoom-shift {
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--fg);
+    cursor: pointer;
+  }
+
+  /* Place chevrons near the split line edges for thumb reach. */
+  .project-zoom-shift--up,
+  .project-zoom-shift--down {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .project-zoom-shift--up {
+    left: var(--gap);
+  }
+
+  .project-zoom-shift--down {
+    right: var(--gap);
+  }
+
+  .project-zoom-shift:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .project-zoom-shift-icon {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* Desktop: keep only the magnifier, hide chevrons. */
+@media (min-width: 600px) {
+  .project-zoom-controls {
+    display: contents;
+  }
+
+  .project-zoom-shift {
+    display: none;
+  }
+}
+
+/* ========== IMMERSIVE ========== */
+/* Hook for full control: .immersive-page is the section; .immersive-main is the full-bleed content area; .immersive-inner wraps your content */
+.view--immersive.immersive-page {
+  padding: 0;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.immersive-nav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  gap: var(--gap);
+  padding: 0.75rem 1rem 0.75rem 1rem;
+  background: var(--bg);
+}
+
+.immersive-nav a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.immersive-nav a:hover {
+  text-decoration: underline;
+}
+
+.immersive-back-overview {
+  font-family: "Grotta Semibold", var(--font);
+  font-weight: 600;
+}
+
+/* In abstraction view: over the image, no solid background; contrast so readable on any image */
+.immersive-page.is-abstracted .immersive-nav {
+  background: transparent;
+}
+
+.immersive-page.is-abstracted .immersive-nav a {
+  color: #fff;
+  text-shadow:
+    0 0 4px #000,
+    0 0 8px #000,
+    0 1px 2px #000,
+    1px 0 2px #000,
+    0 1px 2px #000,
+    -1px 0 2px #000,
+    0 -1px 2px #000,
+    1px 1px 3px #000;
+}
+
+.immersive-page.is-abstracted .immersive-nav a:hover {
+  color: #fff;
+}
+
+.immersive-main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  z-index: 0;
+}
+
+.immersive-inner {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gap);
+  /* Clear the absolute Overview nav so first line isn’t cut off */
+  padding-top: calc(2 * var(--gap) + 2em);
+}
+
+/* Full-bleed immersive when content is the photo story */
+.immersive-main:has(.immersive-story) {
+  overflow: hidden;
+}
+
+.immersive-inner:has(.immersive-story) {
+  padding: 0;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  padding-top: 0;
+}
+
+.immersive-placeholder {
+  width: 100%;
+  max-width: 60ch;
+  padding: 2rem;
+  background: rgba(0, 0, 0, .04);
+  color: var(--muted);
+}
+
+/* Immersive legal-text layout (project 1) */
+.law-layout {
+  width: 100%;
+  width: 100%;
+  max-width: 60rem;
+}
+
+.law-text {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.law-heading {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin: 0 0 1.5rem;
+  text-transform: uppercase;
+}
+
+.law-hint {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.law-fragment {
+  border: none;
+  background: none;
+  padding: 0 0.25rem 0.1rem;
+  margin: 0 -0.1rem;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  text-transform: uppercase;
+  color: var(--fg);
+  text-align: left;
+  transition:
+    transform 0.7s ease-out,
+    background 0.2s ease-out,
+    color 0.2s ease-out;
+}
+
+.law-fragment:hover {
+  background: rgba(0, 0, 0, .06);
+}
+
+.law-fragment.is-active {
+  background: rgba(0, 0, 0, .9);
+  color: #f5f5f5;
+}
+
+.law-image-inline {
+  position: relative;
+}
+
+.law-image-inline img {
+  width: 100%;
+  object-fit: cover;
+  margin-top: 0.75rem;
+}
+
+/* Optional close affordance if you introduce a clickable \"close\" element over inline images */
+.law-image-close:hover {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* Per-project immersive fragment layouts (each immersive/N.html can use any structure) */
+.immersive-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+  width: 100%;
+  max-width: 70rem;
+}
+
+@media (max-width: 599px) {
+  .immersive-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.immersive-split__media img {
+  width: 100%;
+  display: block;
+}
+
+.immersive-split__text {
+  color: var(--muted);
+}
+
+.immersive-story {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  color: #fff;
+}
+
+.immersive-story__image-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  contain: paint;
+  transform: translateZ(0);
+}
+
+.immersive-story__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition:
+    filter 0.7s ease,
+    opacity 0.7s ease,
+    transform 0.7s ease;
+  filter: blur(0);
+  opacity: 1;
+  transform: translateZ(0) scale(1);
+  backface-visibility: hidden;
+}
+
+.immersive-story__image--a {
+  z-index: 1;
+}
+
+.immersive-story__image--b {
+  z-index: 0;
+}
+
+.immersive-story__image.is-front {
+  z-index: 1;
+}
+
+.immersive-story__image:not(.is-front) {
+  z-index: 0;
+}
+
+.immersive-story__image.is-transitioning {
+  filter: blur(8px);
+  opacity: 0;
+  transform: translateZ(0) scale(1.03);
+  pointer-events: none;
+  will-change: filter, opacity, transform;
+}
+
+.immersive-story__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3rem;
+  height: 3rem;
+  border: none;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  line-height: 1;
+  z-index: 10;
+}
+
+.immersive-story__nav--prev {
+  left: var(--gap);
+}
+
+.immersive-story__nav--next {
+  right: var(--gap);
+}
+
+.immersive-story__nav:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.immersive-story__text {
+  position: relative;
+  z-index: 1;
+  font-family: "Grotta Light", var(--font);
+  margin-top: auto;
+  padding: 2.5rem 2.5rem 2.75rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 40%, transparent);
+  transform: translateZ(0);
+}
+
+.immersive-story__text h2 {
+  margin: 0 1.5rem 1.5rem;
+  font-size: 1.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: "Grotta Semibold", var(--font);
+  font-weight: 600;
+}
+
+.immersive-story__text p {
+  margin: 0 1.5rem 1.5rem;
+  font-size: 0.98rem;
+}
+
+@media (max-width: 599px) {
+  .immersive-story__text {
+    padding: 1.5rem 1.5rem 2rem;
+  }
+
+  .immersive-story__nav {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 1.6rem;
+  }
+}
+
+.immersive-quote {
+  max-width: 50ch;
+  padding: 2rem;
+  font-size: 1.25rem;
+  color: var(--muted);
+}
+
+.immersive-quote cite {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.immersive-abstraction-btn {
+  position: absolute;
+  bottom: var(--gap);
+  left: var(--gap);
+  z-index: 10;
+  border: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  padding: 0.25rem;
+  filter: drop-shadow(0 0 2px #000) drop-shadow(0 0 4px #000) drop-shadow(1px 1px 2px #000) drop-shadow(-1px -1px 2px #000);
+}
+
+.immersive-abstraction-btn .icon-abstraction {
+  width: 24px;
+  height: 24px;
+}
+
+/* In abstraction view: keep the same white, outlined icon on the left */
+.immersive-page.is-abstracted .immersive-abstraction-btn {
+  background: transparent;
+  color: #fff;
+}
+
+/* Backdrop image (when caption clicked); above main content, below panel so margin shows image */
+.abstraction-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  cursor: pointer;
+}
+
+/* Zoom-into-project button: shown when backdrop image is visible; above panel so it’s clickable */
+.backdrop-zoom-btn {
+  position: absolute;
+  bottom: var(--gap);
+  right: var(--gap);
+  left: auto;
+  z-index: 6;
+  background: transparent;
+  color: #fff;
+  filter: drop-shadow(0 0 2px #000) drop-shadow(0 0 4px #000) drop-shadow(1px 1px 2px #000) drop-shadow(-1px -1px 2px #000);
+  cursor: pointer;
+}
+
+.backdrop-zoom-btn[hidden] {
+  display: none !important;
+}
+
+.backdrop-zoom-btn .icon-magnifier {
+  width: 24px;
+  height: 24px;
+}
+
+.abstraction-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.2;
+  mix-blend-mode: soft-light;
+  background-image:
+    repeating-linear-gradient(0deg,
+      rgba(255, 255, 255, 0.045) 0,
+      rgba(255, 255, 255, 0.045) 1px,
+      transparent 1px,
+      transparent 2px),
+    repeating-linear-gradient(90deg,
+      rgba(0, 0, 0, 0.35) 0,
+      rgba(0, 0, 0, 0.35) 1px,
+      transparent 1px,
+      transparent 2px);
+}
+
+.abstraction-backdrop[hidden] {
+  display: none !important;
+}
+
+.abstraction-backdrop img,
+.abstraction-backdrop-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.8;
+}
+
+/* Abstraction mode: black background, inset + caption; transitions in/out */
+.immersive-abstraction {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  padding: var(--abstraction-margin);
+  padding-bottom: 5rem;
+  gap: var(--gap);
+  background: #000;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.35s ease, visibility 0.35s ease;
+  transform: translateZ(0);
+}
+
+.immersive-abstraction::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  mix-blend-mode: soft-light;
+  background-image:
+    repeating-linear-gradient(0deg,
+      rgba(255, 255, 255, 0.04) 0,
+      rgba(255, 255, 255, 0.04) 1px,
+      transparent 1px,
+      transparent 2px),
+    repeating-linear-gradient(90deg,
+      rgba(0, 0, 0, 0.35) 0,
+      rgba(0, 0, 0, 0.35) 1px,
+      transparent 1px,
+      transparent 2px);
+}
+
+.immersive-abstraction.is-on {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+}
+
+.immersive-abstraction.is-on>* {
+  pointer-events: auto;
+}
+
+/* When caption image is shown, panel margin becomes transparent so image is visible */
+.immersive-page.backdrop-visible .immersive-abstraction {
+  background: transparent;
+}
+
+.abstraction-inset {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0);
+  background: rgba(0, 0, 0, 1);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 18px 45px rgba(0, 0, 0, 0.9);
+}
+
+.abstraction-inset .immersive-inner {
+  padding: var(--gap);
+  background: #f7f3ea;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+/* Photo story fills the whole abstraction inset */
+.abstraction-inset .immersive-inner:has(.immersive-story) {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* Caption: same bottom row as abstraction button; left padding so caption sits beside button */
+.abstraction-caption-single {
+  position: absolute;
+  bottom: var(--gap);
+  left: var(--gap);
+  right: var(--gap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0 var(--gap);
+  background: transparent;
+  pointer-events: auto;
+}
+
+.caption-current {
+  padding: 0.25rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: #b8860b;
+  font-family: "Adieu Bold", var(--font);
+  font-weight: 400;
+  font-size: 1.4rem;
+  cursor: pointer;
+  text-align: center;
+  /* Contrast outline so caption readable on any image */
+  text-shadow:
+    0 0 4px #000,
+    0 0 6px #000,
+    0 1px 2px #000,
+    1px 0 2px #000,
+    0 1px 2px #000,
+    -1px 0 2px #000,
+    0 -1px 2px #000;
+  /*
+    Caption “radiation” animation
+
+    Goal: make the caption feel subtly interactive (clickable) without turning it into a button/pill.
+    It should be readable on black AND on video/images.
+
+    How to tune:
+    - Speed: change the duration (currently 3.2s). Lower = more active; higher = calmer.
+      e.g. 2s = more urgent, 4s = more ambient.
+    - Pulse style: edit @keyframes captionRadiate below.
+      - filter drop-shadows = the "halo" around the text (works well on black).
+      - text-shadow gold layers = the "radiating" light (more defined edges).
+    - Intensity: increase/decrease the rgba alpha values (last numbers in rgba()).
+    - Size: increase/decrease the blur radii (the px numbers in drop-shadow/text-shadow).
+    - Hover/focus behavior: we pause the animation on :hover and :focus-visible
+      so it feels like the motion "freezes" when the user interacts.
+  */
+  animation: captionRadiate 3.2s ease-in-out infinite;
+  will-change: filter, text-shadow;
+}
+
+.caption-current:hover {
+  animation-play-state: paused;
+  text-decoration: underline;
+}
+
+.project-timeline {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 0.9rem;
+  justify-content: flex-start;
+  align-items: baseline;
+  padding: 0 0 .25rem 0;
+  background: transparent;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.18);
+}
+
+.project-timeline-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg);
+}
+
+.project-fall-meta {
+  padding: 0.25rem 0 0 0;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.project-gallery-panels {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  isolation: isolate;
+  contain: paint;
+  clip-path: inset(0);
+  scrollbar-width: none;
+}
+
+/* Desktop: disable user-initiated horizontal swiping/scrolling. Clicks change FALL. */
+@media (hover: hover) and (pointer: fine) {
+  .project-gallery-panels {
+    overflow-x: hidden;
+    scroll-snap-type: none;
+  }
+}
+
+.project-gallery-panels::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.project-gallery-panel {
+  flex: 0 0 100%;
+  min-width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow: hidden;
+}
+
+.project-gallery-panel-scroll {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding-bottom: 1.25em;
+}
+
+.project-timeline__item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0.1rem 0;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.project-timeline__item:hover,
+.project-timeline__item:focus-visible {
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+.project-timeline__item[aria-current="true"] {
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+.caption-current:focus-visible {
+  animation-play-state: paused;
+  outline: 2px solid rgba(184, 134, 11, 0.65);
+  outline-offset: 3px;
+  text-decoration: underline;
+}
+
+@keyframes captionRadiate {
+
+  0%,
+  100% {
+    /* Rest state: a persistent halo so the glow reads on pure black backgrounds. */
+    filter:
+      drop-shadow(0 0 10px rgba(184, 134, 11, 0.22)) drop-shadow(0 0 18px rgba(184, 134, 11, 0.12));
+    text-shadow:
+      /* Always-on black outline for legibility on top of images/video. */
+      0 0 4px #000,
+      0 0 6px #000,
+      0 1px 2px #000,
+      1px 0 2px #000,
+      0 1px 2px #000,
+      -1px 0 2px #000,
+      0 -1px 2px #000,
+      /* Gold glow layers: smaller = tighter edge, larger = softer radiation. */
+      0 0 14px rgba(184, 134, 11, 0.30),
+      0 0 32px rgba(184, 134, 11, 0.18);
+  }
+
+  50% {
+    /* Peak state: stronger/longer glow to imply “click me” without changing layout. */
+    filter:
+      drop-shadow(0 0 18px rgba(184, 134, 11, 0.42)) drop-shadow(0 0 36px rgba(184, 134, 11, 0.22));
+    text-shadow:
+      /* Keep the same outline in peak state (prevents the glow from washing out text). */
+      0 0 4px #000,
+      0 0 6px #000,
+      0 1px 2px #000,
+      1px 0 2px #000,
+      0 1px 2px #000,
+      -1px 0 2px #000,
+      0 -1px 2px #000,
+      /* Stronger gold glow at peak: increase alpha and blur for more drama. */
+      0 0 22px rgba(184, 134, 11, 0.55),
+      0 0 52px rgba(184, 134, 11, 0.28);
+  }
+}
+
+@media (max-width: 599px) {
+  .caption-current {
+    font-size: 0.875rem;
+  }
+}
