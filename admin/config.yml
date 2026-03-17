@@ -2,21 +2,52 @@ backend:
   name: git-gateway
   branch: main
 
-media_folder: "images/uploads"
-public_folder: "/images/uploads"
+# Safer editing: saves drafts first, then explicit Publish.
+publish_mode: editorial_workflow
 
-site_url: ""
-display_url: ""
+media_folder: "images/uploads"
+# Many existing content files store paths like `images/...` already.
+# Using a root public folder ensures the CMS previews those correctly.
+public_folder: "/"
+
+site_url: "https://unrivaled-pasca-4201ab.netlify.app"
+display_url: "unrivaled-pasca-4201ab.netlify.app"
 
 collections:
   - name: "info"
     label: "Info page"
     files:
-      - label: "Links & CV"
-        name: "links"
+      - label: "Info page (edit this)"
+        name: "info"
         file: "content/info.yml"
         fields:
-          - { label: "Bio", name: "bio_markdown", widget: "markdown", required: false }
+          - label: "Read this first"
+            name: "client_help"
+            widget: "text"
+            required: false
+            default: |
+              Quick guide (please read):
+              - Save: saves a draft (not live yet).
+              - Review / Ready: creates a preview link so you can see the real website before publishing.
+              - Publish: makes changes live on the website (usually updates within 1–2 minutes).
+
+              Previewing your changes (recommended):
+              1) Click Save.
+              2) Move the entry to Review / Ready.
+              3) Open the “Deploy Preview” link and check everything looks right.
+              4) Publish when you’re happy.
+
+              Live site: https://unrivaled-pasca-4201ab.netlify.app/
+
+              If anything looks wrong, do not delete your text—click Cancel and ask for help.
+            hint: "This is just guidance inside the CMS; you can leave it as-is."
+
+          - label: "Bio"
+            name: "bio_markdown"
+            widget: "markdown"
+            required: true
+            hint: "Main bio text shown on the Info page. Keep at least a few paragraphs."
+
           - label: "Press"
             name: "press"
             widget: "list"

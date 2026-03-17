@@ -6,11 +6,84 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Content Manager</title>
   <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+  <style>
+    #cms-help-banner {
+      position: sticky;
+      top: 0;
+      z-index: 9999;
+      background: #111827;
+      color: #f9fafb;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    #cms-help-banner .inner {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 10px 12px;
+    }
+    #cms-help-banner a { color: #93c5fd; }
+    #cms-help-banner .text { max-width: 980px; }
+    #cms-help-banner .text strong { display: inline-block; margin-right: 8px; }
+    #cms-help-banner .actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      white-space: nowrap;
+    }
+    #cms-help-banner button {
+      appearance: none;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.08);
+      color: #f9fafb;
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #cms-help-banner button:hover { background: rgba(255, 255, 255, 0.14); }
+    #cms-help-banner.collapsed .text { display: none; }
+  </style>
 </head>
 
 <body>
+  <div id="cms-help-banner" role="region" aria-label="CMS help">
+    <div class="inner">
+      <div class="text">
+        <strong>Editing guide:</strong>
+        Save = draft (not live). Review/Ready = creates a Deploy Preview link (check the real site). Publish = goes live (1–2 min).
+        Live site: <a href="https://unrivaled-pasca-4201ab.netlify.app/" target="_blank" rel="noopener">unrivaled-pasca-4201ab.netlify.app</a>.
+        If something looks wrong, click Cancel—don’t delete your text.
+      </div>
+      <div class="actions">
+        <a href="https://unrivaled-pasca-4201ab.netlify.app/" target="_blank" rel="noopener">View live</a>
+        <button type="button" id="cms-help-toggle" aria-expanded="true">Hide help</button>
+      </div>
+    </div>
+  </div>
   <script src="https://unpkg.com/decap-cms@^3/dist/decap-cms.js"></script>
   <script>
+    (function () {
+      var banner = document.getElementById("cms-help-banner");
+      var toggle = document.getElementById("cms-help-toggle");
+      if (!banner || !toggle) return;
+
+      function setCollapsed(collapsed) {
+        banner.classList.toggle("collapsed", collapsed);
+        toggle.textContent = collapsed ? "Show help" : "Hide help";
+        toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        try { localStorage.setItem("sdv_cms_help_collapsed", collapsed ? "1" : "0"); } catch (e) {}
+      }
+
+      var initial = false;
+      try { initial = localStorage.getItem("sdv_cms_help_collapsed") === "1"; } catch (e) {}
+      setCollapsed(initial);
+
+      toggle.addEventListener("click", function () {
+        setCollapsed(!banner.classList.contains("collapsed"));
+      });
+    })();
+
     if (window.netlifyIdentity) {
       window.netlifyIdentity.on("init", function (user) {
         if (!user) {
