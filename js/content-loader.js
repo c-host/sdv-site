@@ -337,6 +337,13 @@
     return { data: parseYaml(fmRaw) || {}, body: body.replace(/^\n+/, '') };
   }
 
+  function normalizeProjectDataFromMd(parsed) {
+    var data = (parsed && parsed.data) ? (parsed.data || {}) : {};
+    var body = (parsed && parsed.body !== undefined && parsed.body !== null) ? String(parsed.body) : '';
+    data.body = body;
+    return data;
+  }
+
   function parseYaml(text) {
     var lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
     var i = 0;
@@ -642,11 +649,11 @@
       if (SDV_PREVIEW.projectsBySlug && SDV_PREVIEW.projectsBySlug[slug]) {
         return Promise.resolve({ slug: slug, data: SDV_PREVIEW.projectsBySlug[slug] || {} });
       }
-      var url = prefix + 'content/projects/' + slug + '.yml';
+      var url = prefix + 'content/projects/' + slug + '.md';
       return fetch(url).then(function (r) {
         return r.ok ? r.text() : Promise.reject(new Error(r.status));
-      }).then(function (yml) {
-        return { slug: slug, data: parseYaml(yml) || {} };
+      }).then(function (raw) {
+        return { slug: slug, data: normalizeProjectDataFromMd(parseFrontmatter(raw)) || {} };
       });
     }
 
@@ -885,9 +892,9 @@
       ? (SDV_PREVIEW.projectsBySlug[slug] || {})
       : null;
     if (!data) {
-      var url = prefix + 'content/projects/' + slug + '.yml';
-      var yml = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
-      data = parseYaml(yml) || {};
+      var url = prefix + 'content/projects/' + slug + '.md';
+      var raw = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
+      data = normalizeProjectDataFromMd(parseFrontmatter(raw)) || {};
     }
 
     if (data.header_title || data.title) {
@@ -896,13 +903,21 @@
     if (data.page_title || data.title) {
       document.title = String(data.page_title || data.title);
     }
-    textHost.innerHTML = data.overview_markdown
-      ? renderMarkdown(String(data.overview_markdown))
+    var overviewMd = (data.body !== undefined && data.body !== null) ? String(data.body) : (data.overview_markdown ? String(data.overview_markdown) : '');
+    textHost.innerHTML = overviewMd
+      ? renderMarkdown(overviewMd)
       : '<p>Content not found.</p>';
 
     var materialsHost = document.getElementById('project-materials');
     if (materialsHost) {
-      var matsHtml = data.materials_markdown ? renderMarkdown(String(data.materials_markdown)) : '';
+      var matsHtml = '';
+      if (Array.isArray(data.materials) && data.materials.length) {
+        matsHtml = '<h3>Materials</h3><ul>' + data.materials.map(function (m) {
+          return '<li>' + renderInlineMarkdown(String(m || '')) + '</li>';
+        }).join('') + '</ul>';
+      } else if (data.materials_markdown) {
+        matsHtml = renderMarkdown(String(data.materials_markdown));
+      }
       var matKeys = extractMaterialKeysForProject(data);
       var icons = renderMaterialIcons(matKeys);
       var iconsWrap = icons ? ('<div class="project-material-icons" aria-hidden="true">' + icons + '</div>') : '';

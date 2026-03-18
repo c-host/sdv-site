@@ -116,7 +116,7 @@ collections:
     files:
       - label: "The Spontaneous Dance Falls"
         name: "project1"
-        file: "content/projects/the-spontaneous-dance-falls.yml"
+        file: "content/projects/the-spontaneous-dance-falls.md"
         fields:
           - {
               label: "Enable immersive link (magnifier on overview page)",
@@ -149,10 +149,11 @@ collections:
               widget: "string",
               required: true,
             }
-          - label: "Overview"
-            name: "overview_markdown"
+          - label: "Overview (main text)"
+            name: "body"
             widget: "markdown"
-            modes: ["raw"]
+            required: true
+            modes: ["rich_text"]
             buttons:
               - bold
               - italic
@@ -162,20 +163,12 @@ collections:
               - bulleted-list
               - numbered-list
             editor_components: []
-          - label: "Material List (overview text)"
-            name: "materials_markdown"
-            widget: "markdown"
+          - label: "Materials (list)"
+            name: "materials"
+            widget: "list"
             required: false
-            modes: ["raw"]
-            buttons:
-              - bold
-              - italic
-              - strikethrough
-              - link
-              - quote
-              - bulleted-list
-              - numbered-list
-            editor_components: []
+            hint: "Plain text items shown as a bulleted list under Materials."
+            field: { label: "Material item", name: "item", widget: "string" }
           - label: "Links"
             name: "links"
             widget: "list"
@@ -211,7 +204,7 @@ collections:
 
       - label: "Under the Needle's Eye"
         name: "project2"
-        file: "content/projects/under-the-needles-eye.yml"
+        file: "content/projects/under-the-needles-eye.md"
         fields:
           - {
               label: "Enable immersive link (magnifier on overview page)",
@@ -244,10 +237,11 @@ collections:
               widget: "string",
               required: true,
             }
-          - label: "Overview"
-            name: "overview_markdown"
+          - label: "Overview (main text)"
+            name: "body"
             widget: "markdown"
-            modes: ["raw"]
+            required: true
+            modes: ["rich_text"]
             buttons:
               - bold
               - italic
@@ -257,20 +251,12 @@ collections:
               - bulleted-list
               - numbered-list
             editor_components: []
-          - label: "Material List (overview text)"
-            name: "materials_markdown"
-            widget: "markdown"
+          - label: "Materials (list)"
+            name: "materials"
+            widget: "list"
             required: false
-            modes: ["raw"]
-            buttons:
-              - bold
-              - italic
-              - strikethrough
-              - link
-              - quote
-              - bulleted-list
-              - numbered-list
-            editor_components: []
+            hint: "Plain text items shown as a bulleted list under Materials."
+            field: { label: "Material item", name: "item", widget: "string" }
           - label: "Links"
             name: "links"
             widget: "list"
@@ -294,7 +280,7 @@ collections:
 
       - label: "Overlocked"
         name: "project3"
-        file: "content/projects/overlocked.yml"
+        file: "content/projects/overlocked.md"
         fields:
           - {
               label: "Enable immersive link (magnifier on overview page)",
@@ -327,10 +313,11 @@ collections:
               widget: "string",
               required: false,
             }
-          - label: "Overview"
-            name: "overview_markdown"
+          - label: "Overview (main text)"
+            name: "body"
             widget: "markdown"
-            modes: ["raw"]
+            required: true
+            modes: ["rich_text"]
             buttons:
               - bold
               - italic
@@ -340,20 +327,12 @@ collections:
               - bulleted-list
               - numbered-list
             editor_components: []
-          - label: "Materials List (overview text)"
-            name: "materials_markdown"
-            widget: "markdown"
+          - label: "Materials (list)"
+            name: "materials"
+            widget: "list"
             required: false
-            modes: ["raw"]
-            buttons:
-              - bold
-              - italic
-              - strikethrough
-              - link
-              - quote
-              - bulleted-list
-              - numbered-list
-            editor_components: []
+            hint: "Plain text items shown as a bulleted list under Materials."
+            field: { label: "Material item", name: "item", widget: "string" }
           - label: "Links"
             name: "links"
             widget: "list"
