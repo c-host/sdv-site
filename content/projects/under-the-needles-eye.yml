@@ -1,7 +1,14 @@
-page_title: SDV - Under the Needle's Eye
-header_title: Under the Needle's Eye
 immersive_enabled: true
-title: Under the Needle's Eye
+
+# Optional: curated materials shown on the Home screen filter/icons.
+home_materials:
+  - Textile
+  - Metal
+  - Archive
+  - A/V
+
+header_title: Under the Needle's Eye
+
 overview_markdown: |
   A lost textile industry forms the departing point of Stacey de Voe's exhibition **Under the Needle's Eye** (Under nålens öga). In Kürzel's Factory (1896-1955), where Skånes konstförening’s premises are located, worked spinners, dyers, and weavers; union representatives; and managers. de Voe engages with the context and develops site-specific works that stage the memory of the locale as an intricate supervisor and a world dressed in tartan and duvetyne.
 
@@ -17,49 +24,34 @@ overview_markdown: |
 
   **Text by** Albin Hillervik
 
-materials:
-  - Textile
-  - Duvetyne (molton)
-  - Iron
-  - Archival documents
-  - Printed matter
-  - Video
-  - Sound
-
-# Optional: curated materials shown on the Home screen filter/icons.
-home_materials:
-  - Textile
-  - Metal
-  - Archive
-  - A/V
-
 materials_markdown: |
   ### Materials
 
   - Textiles (tartan-patterned prints, draped duvetyne/molton)
   - Iron gate
-  - Archival sources (factory records, union protocols, anniversary book)
-  - Graphic prints (reproduced payrolls)
+  - Archival sources (factory records, union protocols, anniversary book, reproduced payrolls)
   - Video essay / moving image
   - Sound
+
 links:
   - label: Watch video essay (English)
     url: https://vimeo.com/1028801166
   - label: Watch video essay (Swedish)
     url: https://vimeo.com/920974931
+
 gallery:
-  - images/project-overviews/under-the-needles-eye/1_needle.jpg
-  - images/project-overviews/under-the-needles-eye/2_needle.jpg
-  - images/project-overviews/under-the-needles-eye/3_needle.jpg
-  - images/project-overviews/under-the-needles-eye/4_needle.jpg
-  - images/project-overviews/under-the-needles-eye/5_needle.jpg
-  - images/project-overviews/under-the-needles-eye/6_needle.jpg
-  - images/project-overviews/under-the-needles-eye/7_needle.jpg
-  - images/project-overviews/under-the-needles-eye/8_needle.jpg
-  - images/project-overviews/under-the-needles-eye/9_needle.jpg
-  - images/project-overviews/under-the-needles-eye/10_needle.jpg
-  - images/project-overviews/under-the-needles-eye/11_needle.jpg
-  - images/project-overviews/under-the-needles-eye/12_needle.jpg
-  - images/project-overviews/under-the-needles-eye/13_needle.jpg
-  - images/project-overviews/under-the-needles-eye/14_needle.jpg
-  - images/project-overviews/under-the-needles-eye/15_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/1_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/2_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/3_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/4_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/5_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/6_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/7_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/8_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/9_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/10_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/11_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/12_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/13_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/14_needle.jpg
+  - /images/project-overviews/under-the-needles-eye/15_needle.jpg

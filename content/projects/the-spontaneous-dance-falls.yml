@@ -1,7 +1,17 @@
-page_title: SDV - The Spontaneous Dance Falls
-header_title: The Spontaneous Dance Falls
 immersive_enabled: true
-title: The Spontaneous Dance Falls
+
+# Optional: curated materials shown on the Home screen filter/icons.
+home_materials:
+  - Glass
+  - Textile
+  - Metal
+  - Archive
+  - A/V
+  - Performance
+  - Objects
+
+header_title: The Spontaneous Dance Falls
+
 overview_markdown: |
   Stacey de Voe's **The Spontaneous Dance Falls** drifts across histories of collective movement, lingering in the places where bodies in motion have unsettled authority and opened fleeting horizons of possibility. What do we lose when dance is contained, and what might be unleashed when we let it overflow?
 
@@ -17,28 +27,6 @@ overview_markdown: |
 
   **Text by** Karin Bähler Lavér
 
-materials:
-  - Glass
-  - Mannequins
-  - Archival documents
-  - Legal texts
-  - Textile
-  - Industrial shelving
-  - Metal hardware
-  - Video
-  - Sound
-  - Performance
-
-# Optional: curated materials shown on the Home screen filter/icons.
-home_materials:
-  - Glass
-  - Textile
-  - Metal
-  - Archive
-  - A/V
-  - Performance
-  - Objects
-
 materials_markdown: |
   ### Materials
 
@@ -48,7 +36,7 @@ materials_markdown: |
   - Textile remnants
   - Industrial shelving
   - Metal hardware
-  - Video/sound installation equipment
+  - Video/sound installation
   - Performance and movement scores
 
 # Multi-panel timeline (right column). Each item becomes a clickable “Fall”.
@@ -59,42 +47,39 @@ materials_markdown: |
 falls:
   - label: "Fall 1"
     type: "Exhibition"
-    details: ""
     images:
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-1.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-2.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-3.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-4.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-5.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-6.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-7.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-8.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-9.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-10.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-11.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-12.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-13.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-14.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-15.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-16.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-17.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-1/fall-1-18.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-1.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-2.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-3.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-4.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-5.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-6.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-7.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-8.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-9.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-10.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-11.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-12.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-13.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-14.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-15.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-16.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-17.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-18.jpg
   - label: "Fall 2"
     type: "Exhibition"
-    details: ""
     images:
-      - images/project-overviews/the-spontaneous-dance-falls/fall-2/fall-2-1.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-2/fall-2-2.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-2/fall-2-3.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-2/fall-2-4.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-2/fall-2-5.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-2/fall-2-6.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-2/fall-2-7.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-2/fall-2-8.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-1.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-2.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-3.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-4.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-5.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-6.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-7.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-8.jpg
   - label: "Fall 3"
     type: "Performance Lecture"
-    details: ""
     images:
-      - images/project-overviews/the-spontaneous-dance-falls/fall-3/fall-3-1.jpg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-3/fall-3-2.jpeg
-      - images/project-overviews/the-spontaneous-dance-falls/fall-3/fall-3-3.jpeg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-3-1.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-3-2.jpeg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-3-3.jpeg

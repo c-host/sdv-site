@@ -1,20 +1,4 @@
 ---
-client_help: |
-  Quick guide (please read):
-  - Save: saves a draft (not live yet).
-  - Review / Ready: creates a preview link so you can see the real website before publishing.
-  - Publish: makes changes live on the website (usually updates within 1-2 minutes).
-
-  Previewing your changes (recommended):
-  1) Click Save.
-  2) Move the entry to Review / Ready.
-  3) Open the “Deploy Preview” link and check everything looks right.
-  4) Publish when you're happy.
-
-  Live site: https://unrivaled-pasca-4201ab.netlify.app/
-
-  If anything looks wrong, do not delete your text—click Cancel and ask for help.
-
 press:
   - title: Portrait of a Generation
     url: https://kunstkritikk.com/portrait-of-a-generation/

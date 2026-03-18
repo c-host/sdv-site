@@ -523,10 +523,11 @@ img {
 
 .info-pane h2 {
   flex-shrink: 0;
-  margin: 0;
+  margin: 0 0 0 0.75rem;
   padding: var(--gap);
-  font-size: 1rem;
+  font-size: 1.25rem;
   font-weight: 600;
+  font-family: "Grotta Semibold", var(--font);
 }
 
 .info-scroll {
@@ -674,6 +675,19 @@ img {
 
 .project-scroll p {
   margin: 0 0 0.75rem;
+}
+
+.project-material-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0.25rem 0 0.75rem;
+  opacity: 0.9;
+}
+
+.project-material-icons .home-material-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .project-images {

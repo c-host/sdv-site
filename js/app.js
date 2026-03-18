@@ -41,6 +41,21 @@
     return rootPrefix() + s;
   }
 
+  function isPreviewEnabled() {
+    try {
+      var qs = new URLSearchParams(window.location.search || '');
+      return qs.get('sdvPreview') === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function withPreviewQuery(path) {
+    if (!isPreviewEnabled()) return path;
+    // Preserve preview mode across in-iframe navigation.
+    return String(path || '') + (String(path || '').includes('?') ? '&' : '?') + 'sdvPreview=1';
+  }
+
   // Ordered list of image paths for Project 2's immersive photo story slider.
   const PROJECT2_IMAGES = [
     'images/project-overviews/under-the-needles-eye/1_needle.jpg',
@@ -515,9 +530,44 @@
    * Build a shuffled list of captions for the current project context.
    * - Always excludes captions whose project === currentProject.
    */
+  function normalizeCaptionProject(raw) {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'object') {
+      // Decap select widgets can yield objects like { label, value } in some cases.
+      if (raw.value !== undefined && raw.value !== null) return normalizeCaptionProject(raw.value);
+      if (raw.label !== undefined && raw.label !== null) return normalizeCaptionProject(raw.label);
+      return null;
+    }
+    if (typeof raw === 'number') return raw;
+    var s = String(raw).trim();
+    if (!s) return null;
+    if (/^\d+$/.test(s)) return parseInt(s, 10);
+    // Prefer slug mapping (new CMS behavior).
+    if (SLUG_TO_PROJECT[s]) return SLUG_TO_PROJECT[s];
+    // Last resort: try to match by project title label.
+    var key = s.toLowerCase();
+    if (key.indexOf('spontaneous') !== -1 || key.indexOf('dance') !== -1 || key.indexOf('falls') !== -1) return 1;
+    if (key.indexOf('needle') !== -1) return 2;
+    if (key.indexOf('overlocked') !== -1) return 3;
+    return null;
+  }
+
+  function normalizeCaptions(list) {
+    if (!Array.isArray(list)) return [];
+    return list.map(function (c) {
+      if (!c) return null;
+      var id = normalizeCaptionProject(c.project);
+      if (!id) return null;
+      var text = (c.text === null || c.text === undefined) ? '' : String(c.text);
+      if (!text.trim()) return null;
+      return { project: id, text: text };
+    }).filter(Boolean);
+  }
+
   function getCaptionsForCurrentContext() {
     var source = (window.SDV_CAPTIONS && Array.isArray(window.SDV_CAPTIONS)) ? window.SDV_CAPTIONS : CAPTIONS;
-    var other = source.filter(function (c) { return c.project !== currentProject; });
+    var normalized = normalizeCaptions(source);
+    var other = normalized.filter(function (c) { return c.project !== currentProject; });
     return shuffleArray(other);
   }
 
@@ -577,7 +627,9 @@
     const zoomBtn = document.getElementById('backdrop-zoom-btn');
     const page = document.querySelector('.immersive-page');
     if (!backdrop) return;
-    var id = parseInt(projectId, 10) || 1;
+    // Accept either numeric ids (1/2/3) or slugs (e.g. "overlocked").
+    var normalized = normalizeCaptionProject(projectId);
+    var id = normalized || 1;
     var videoSrc = OVERLAY_VIDEO[id];
 
     backdrop.dataset.targetProject = String(id);
@@ -786,9 +838,6 @@
       return;
     }
 
-    if (host.dataset.bound === '1') return;
-    host.dataset.bound = '1';
-
     var storageKey = 'sdv.homeMaterials.selected';
     var selected = new Set();
     try {
@@ -819,16 +868,27 @@
 
     function rerender() {
       renderHomeMaterialIcons(Array.from(selected));
-      host.querySelectorAll('.home-material-btn').forEach(function (btn) {
-        btn.classList.toggle('is-on', selected.has(btn.dataset.materialKey));
-        btn.setAttribute('aria-pressed', selected.has(btn.dataset.materialKey) ? 'true' : 'false');
-      });
-      var status = host.querySelector('.home-material-status');
-      if (status) status.textContent = selectedSummary();
+      // If the UI is already built, update button states + status.
+      if (host.dataset.bound === '1') {
+        host.querySelectorAll('.home-material-btn').forEach(function (btn) {
+          btn.classList.toggle('is-on', selected.has(btn.dataset.materialKey));
+          btn.setAttribute('aria-pressed', selected.has(btn.dataset.materialKey) ? 'true' : 'false');
+        });
+        var status = host.querySelector('.home-material-status');
+        if (status) status.textContent = selectedSummary();
+      }
       try {
         localStorage.setItem(storageKey, JSON.stringify(Array.from(selected)));
       } catch (e) { }
     }
+
+    // If the UI was already initialized, don't rebuild it—just rerender.
+    // This is what makes project-title icons update immediately when materials change.
+    if (host.dataset.bound === '1') {
+      rerender();
+      return;
+    }
+    host.dataset.bound = '1';
 
     var html = '' +
       '<div class="home-material-meta">' +
@@ -900,7 +960,7 @@
 
     function goToCurrentProject() {
       var slug = PROJECT_SLUGS[currentProject] || PROJECT_SLUGS[1];
-      window.location.href = 'project/' + slug + '/';
+      window.location.href = withPreviewQuery('project/' + slug + '/');
     }
 
     document.querySelectorAll('.home-project').forEach(function (btn) {
@@ -942,7 +1002,8 @@
     });
 
     document.getElementById('caption-current')?.addEventListener('click', function () {
-      const projectId = parseInt(this.dataset.project, 10);
+      // Allow both numeric ids (legacy) and slugs (CMS select values).
+      var projectId = normalizeCaptionProject(this.dataset.project);
       if (!projectId) return;
       showBackdrop(projectId);
     });
@@ -951,7 +1012,7 @@
       const projectId = this.dataset.targetProject || '1';
       hideBackdrop();
       var slug = PROJECT_SLUGS[parseInt(projectId, 10) || 1] || PROJECT_SLUGS[1];
-      window.location.href = '../../immersive/' + slug + '/';
+      window.location.href = withPreviewQuery('../../immersive/' + slug + '/');
     });
 
     document.getElementById('backdrop-zoom-btn')?.addEventListener('click', function (e) {
@@ -959,7 +1020,7 @@
       const projectId = this.dataset.targetProject || '1';
       hideBackdrop();
       var slug = PROJECT_SLUGS[parseInt(projectId, 10) || 1] || PROJECT_SLUGS[1];
-      window.location.href = '../../project/' + slug + '/';
+      window.location.href = withPreviewQuery('../../project/' + slug + '/');
     });
   }
 

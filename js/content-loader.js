@@ -1,6 +1,183 @@
 (function () {
   'use strict';
 
+  // ---------------------------------------------------------------------------
+  // Decap CMS live preview overrides (iframe -> postMessage -> in-memory store)
+  // ---------------------------------------------------------------------------
+
+  var SDV_PREVIEW = {
+    projectsBySlug: {},
+    info: null,      // { data: {...}, body: "markdown" }
+    captions: null,  // { captions: [...] }
+  };
+
+  function isPreviewEnabled() {
+    try {
+      var qs = new URLSearchParams(window.location.search || '');
+      return qs.get('sdvPreview') === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  var PREVIEW_STORAGE_KEY = 'sdv.preview.v1';
+
+  function loadPreviewFromStorage() {
+    if (!isPreviewEnabled()) return;
+    try {
+      var raw = sessionStorage.getItem(PREVIEW_STORAGE_KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return;
+      if (parsed.projectsBySlug && typeof parsed.projectsBySlug === 'object') {
+        SDV_PREVIEW.projectsBySlug = parsed.projectsBySlug;
+      }
+      if (parsed.info && typeof parsed.info === 'object') {
+        SDV_PREVIEW.info = parsed.info;
+      }
+      if (parsed.captions && typeof parsed.captions === 'object') {
+        SDV_PREVIEW.captions = parsed.captions;
+      }
+    } catch (e) { }
+  }
+
+  function savePreviewToStorage() {
+    if (!isPreviewEnabled()) return;
+    try {
+      var payload = {
+        projectsBySlug: SDV_PREVIEW.projectsBySlug || {},
+        info: SDV_PREVIEW.info,
+        captions: SDV_PREVIEW.captions,
+      };
+      sessionStorage.setItem(PREVIEW_STORAGE_KEY, JSON.stringify(payload));
+    } catch (e) { }
+  }
+
+  function clearPreviewStorage() {
+    try {
+      sessionStorage.removeItem(PREVIEW_STORAGE_KEY);
+    } catch (e) { }
+  }
+
+  loadPreviewFromStorage();
+
+  function withPreviewQuery(href) {
+    if (!isPreviewEnabled()) return href;
+    var s = String(href || '');
+    if (!s) return s;
+    if (/^(https?:)?\/\//i.test(s)) return s;
+    if (s.startsWith('#') || s.startsWith('mailto:') || s.startsWith('tel:')) return s;
+    if (s.indexOf('sdvPreview=1') !== -1) return s;
+    return s + (s.indexOf('?') !== -1 ? '&' : '?') + 'sdvPreview=1';
+  }
+
+  function preservePreviewLinks() {
+    if (!isPreviewEnabled()) return;
+    // Ensure any normal <a href> navigation inside the iframe keeps preview mode.
+    // (Some links are static HTML and don't go through app.js handlers.)
+    document.querySelectorAll('a[href]').forEach(function (a) {
+      var href = a.getAttribute('href') || '';
+      if (!href) return;
+      // Skip external links.
+      if (/^(https?:)?\/\//i.test(href)) return;
+      // Skip downloads/assets (keep as-is).
+      if (/\.(pdf|png|jpe?g|gif|webp|mp4|webm)(\?|#|$)/i.test(href)) return;
+      a.setAttribute('href', withPreviewQuery(href));
+    });
+  }
+
+  function isTrustedPreviewMessage(event) {
+    // In normal deployments, admin and site are same-origin.
+    // When running locally via file://, origin can be "null".
+    try {
+      if (!event) return false;
+      if (event.origin === window.location.origin) return true;
+      if (event.origin === 'null') return true;
+    } catch (e) { }
+    return false;
+  }
+
+  function normalizePreviewPayload(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    if (payload.collection === 'projects') {
+      var slug = payload.slug ? String(payload.slug) : '';
+      if (!slug) return null;
+      return { kind: 'project', slug: slug, data: payload.data || {} };
+    }
+    if (payload.collection === 'info') {
+      var d = payload.data || {};
+      // Decap uses the configured field name `body` for the markdown body.
+      var body = (d && d.body !== undefined && d.body !== null) ? String(d.body) : '';
+      // Keep all other keys as "frontmatter-like" data.
+      var fm = {};
+      Object.keys(d || {}).forEach(function (k) {
+        if (k === 'body') return;
+        fm[k] = d[k];
+      });
+      return { kind: 'info', data: fm, body: body };
+    }
+    if (payload.collection === 'captions') {
+      var cap = payload.data && Array.isArray(payload.data.captions) ? payload.data.captions : [];
+      return { kind: 'captions', captions: cap };
+    }
+    return null;
+  }
+
+  window.addEventListener('message', function (event) {
+    if (!isTrustedPreviewMessage(event)) return;
+    var msg = event.data;
+    if (!msg || typeof msg !== 'object') return;
+
+    if (msg.type === 'sdv:preview:clear') {
+      SDV_PREVIEW.projectsBySlug = {};
+      SDV_PREVIEW.info = null;
+      SDV_PREVIEW.captions = null;
+      clearPreviewStorage();
+      return;
+    }
+
+    if (msg.type !== 'sdv:preview') return;
+    var normalized = normalizePreviewPayload(msg.payload);
+    if (!normalized) return;
+
+    if (normalized.kind === 'project') {
+      SDV_PREVIEW.projectsBySlug[normalized.slug] = normalized.data || {};
+      savePreviewToStorage();
+      // If we're currently viewing that project page, re-render immediately.
+      var currentSlug = getProjectSlugFromPath();
+      if (currentSlug && currentSlug === normalized.slug) {
+        loadProject().catch(function () { });
+      }
+      // If we're currently viewing the Home page, refresh materials-derived UI.
+      if (document.getElementById('home-project-image')) {
+        scheduleHomeMaterialsRefresh();
+      }
+    } else if (normalized.kind === 'info') {
+      SDV_PREVIEW.info = { data: normalized.data || {}, body: normalized.body || '' };
+      savePreviewToStorage();
+      if (document.getElementById('info-links') || document.getElementById('bio-content')) {
+        loadInfoLinks().catch(function () { });
+      }
+    } else if (normalized.kind === 'captions') {
+      SDV_PREVIEW.captions = { captions: normalized.captions || [] };
+      savePreviewToStorage();
+      // Push into the runtime event pathway immediately if we're on an immersive page.
+      if (document.querySelector('.immersive-page')) {
+        window.SDV_CAPTIONS = SDV_PREVIEW.captions.captions;
+        window.dispatchEvent(new Event('sdv:captions'));
+      }
+    }
+  });
+
+  var homeMaterialsRefreshTimer = 0;
+  function scheduleHomeMaterialsRefresh() {
+    if (homeMaterialsRefreshTimer) clearTimeout(homeMaterialsRefreshTimer);
+    homeMaterialsRefreshTimer = setTimeout(function () {
+      homeMaterialsRefreshTimer = 0;
+      loadHomeMaterials().catch(function () { });
+    }, 50);
+  }
+
   function getPathDepth() {
     var parts = (window.location.pathname || '').split('/').filter(Boolean);
     return parts.length;
@@ -22,6 +199,7 @@
   function renderInlineMarkdown(s) {
     var out = escapeHtml(s);
     out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    out = out.replace(/~~([^~]+)~~/g, '<del>$1</del>');
     out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
     return out;
@@ -32,10 +210,13 @@
     var blocks = [];
     var buf = [];
     var listBuf = null;
+    var orderedBuf = null;
+    var quoteBuf = null;
 
     function flushParagraph() {
       if (!buf.length) return;
-      blocks.push('<p>' + renderInlineMarkdown(buf.join(' ').trim()) + '</p>');
+      // Keep single newlines as spaces, but don't collapse intentional spacing too aggressively.
+      blocks.push('<p>' + renderInlineMarkdown(buf.join(' ').replace(/\s+/g, ' ').trim()) + '</p>');
       buf = [];
     }
 
@@ -47,19 +228,85 @@
       listBuf = null;
     }
 
+    function flushOrderedList() {
+      if (!orderedBuf || !orderedBuf.length) return;
+      blocks.push('<ol>' + orderedBuf.map(function (li) {
+        return '<li>' + renderInlineMarkdown(li) + '</li>';
+      }).join('') + '</ol>');
+      orderedBuf = null;
+    }
+
+    function flushQuote() {
+      if (!quoteBuf || !quoteBuf.length) return;
+      // Render as paragraphs inside a blockquote.
+      var inner = quoteBuf.map(function (q) {
+        return '<p>' + renderInlineMarkdown(String(q || '').trim()) + '</p>';
+      }).join('');
+      blocks.push('<blockquote>' + inner + '</blockquote>');
+      quoteBuf = null;
+    }
+
+    function isListItem(line) {
+      var t = String(line || '').trim();
+      // Support common list markers from editors: "-", "*", and unicode bullet "•".
+      return /^(-|\*|•)\s+/.test(t);
+    }
+
+    function listItemText(line) {
+      return String(line || '').trim().replace(/^(-|\*|•)\s+/, '').trim();
+    }
+
+    function isOrderedItem(line) {
+      var t = String(line || '').trim();
+      return /^\d+\.\s+/.test(t);
+    }
+
+    function orderedItemText(line) {
+      return String(line || '').trim().replace(/^\d+\.\s+/, '').trim();
+    }
+
+    function isQuoteLine(line) {
+      var t = String(line || '');
+      return /^\s*>\s?/.test(t);
+    }
+
+    function quoteText(line) {
+      return String(line || '').replace(/^\s*>\s?/, '');
+    }
+
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
       if (!line.trim()) {
+        flushQuote();
+        flushOrderedList();
         flushList();
         flushParagraph();
         continue;
       }
-      if (line.trim().startsWith('- ')) {
+      if (isQuoteLine(line)) {
         flushParagraph();
-        if (!listBuf) listBuf = [];
-        listBuf.push(line.trim().slice(2).trim());
+        flushList();
+        flushOrderedList();
+        if (!quoteBuf) quoteBuf = [];
+        quoteBuf.push(quoteText(line));
         continue;
       }
+      flushQuote();
+      if (isListItem(line)) {
+        flushParagraph();
+        flushOrderedList();
+        if (!listBuf) listBuf = [];
+        listBuf.push(listItemText(line));
+        continue;
+      }
+      if (isOrderedItem(line)) {
+        flushParagraph();
+        flushList();
+        if (!orderedBuf) orderedBuf = [];
+        orderedBuf.push(orderedItemText(line));
+        continue;
+      }
+      flushOrderedList();
       flushList();
       if (line.startsWith('### ')) {
         flushParagraph();
@@ -73,6 +320,8 @@
       }
       buf.push(line.trim());
     }
+    flushQuote();
+    flushOrderedList();
     flushList();
     flushParagraph();
     return blocks.join('\n');
@@ -276,6 +525,111 @@
     }
   }
 
+  function materialIconSvg(key) {
+    var stroke = 'currentColor';
+    var sw = '1.5';
+    switch (key) {
+      case 'glass':
+        return (
+          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
+          '<path d="M6 3h12l-5 8v8l-2 2-2-2v-8L6 3z" />' +
+          '</svg>'
+        );
+      case 'metal':
+        return (
+          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
+          '<path d="M4 14l6-6 10 10-6 6L4 14z" />' +
+          '<path d="M9 9l6 6" />' +
+          '</svg>'
+        );
+      case 'textile':
+        return (
+          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
+          '<rect x="5" y="6" width="14" height="12" rx="1" />' +
+          '<path d="M8 6v12M12 6v12M16 6v12" />' +
+          '</svg>'
+        );
+      case 'synthetic':
+        return (
+          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
+          '<path d="M12 3c4 0 7 2.7 7 6.5 0 4.6-4.2 6.8-7 11.5-2.8-4.7-7-6.9-7-11.5C5 5.7 8 3 12 3z" />' +
+          '<path d="M9 10c1.2 1 2.2 1.5 3 1.5S13.8 11 15 10" />' +
+          '</svg>'
+        );
+      case 'archive':
+        return (
+          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
+          '<path d="M7 3h7l3 3v15H7V3z" />' +
+          '<path d="M14 3v4h4" />' +
+          '<path d="M9 11h6M9 15h6" />' +
+          '</svg>'
+        );
+      case 'av':
+        return (
+          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
+          '<path d="M4 10v4" />' +
+          '<path d="M7 8v8" />' +
+          '<path d="M10 6v12" />' +
+          '<path d="M14 8v8" />' +
+          '<path d="M17 10v4" />' +
+          '<path d="M20 11v2" />' +
+          '</svg>'
+        );
+      case 'performance':
+        return (
+          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
+          '<circle cx="12" cy="7" r="2" />' +
+          '<path d="M8 21l2-6 2-2 2 2 2 6" />' +
+          '<path d="M10 13l-2-2M14 13l2-2" />' +
+          '</svg>'
+        );
+      case 'objects':
+        return (
+          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
+          '<rect x="6" y="6" width="12" height="12" rx="1" />' +
+          '<path d="M9 10h6M9 14h6" />' +
+          '</svg>'
+        );
+      default:
+        return (
+          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
+          '<circle cx="12" cy="12" r="8" />' +
+          '<path d="M8 12h8" />' +
+          '</svg>'
+        );
+    }
+  }
+
+  function renderMaterialIcons(keys) {
+    if (!Array.isArray(keys) || !keys.length) return '';
+    var html = '';
+    keys.forEach(function (k) {
+      if (!k) return;
+      html += materialIconSvg(String(k));
+    });
+    return html;
+  }
+
+  function extractMaterialKeysForProject(data) {
+    var sourceList = Array.isArray(data && data.home_materials)
+      ? data.home_materials
+      : (Array.isArray(data && data.materials) ? data.materials : []);
+    var keys = [];
+    var seen = {};
+    sourceList.forEach(function (labelRaw) {
+      if (labelRaw === null || labelRaw === undefined) return;
+      var label = String(labelRaw).trim();
+      if (!label) return;
+      var rawKey = slugifyKey(label);
+      if (!rawKey) return;
+      var key = canonicalMaterialKey(rawKey, label);
+      if (!key || seen[key]) return;
+      seen[key] = 1;
+      keys.push(key);
+    });
+    return keys;
+  }
+
   async function loadHomeMaterials() {
     // Only run on home.
     if (!document.querySelector('.view--home')) return;
@@ -284,6 +638,10 @@
     var slugs = ['the-spontaneous-dance-falls', 'under-the-needles-eye', 'overlocked'];
 
     function fetchProject(slug) {
+      // Prefer in-memory draft data when preview is active.
+      if (SDV_PREVIEW.projectsBySlug && SDV_PREVIEW.projectsBySlug[slug]) {
+        return Promise.resolve({ slug: slug, data: SDV_PREVIEW.projectsBySlug[slug] || {} });
+      }
       var url = prefix + 'content/projects/' + slug + '.yml';
       return fetch(url).then(function (r) {
         return r.ok ? r.text() : Promise.reject(new Error(r.status));
@@ -341,6 +699,9 @@
       var s = String(src || '');
       var isAbs = /^https?:\/\//i.test(s);
       if (!isAbs && s.startsWith('/')) s = s.slice(1);
+      // Content may store paths relative to the `images/` dir (e.g. `project-overviews/...`).
+      // Normalize to `images/<path>` for the runtime site which expects assets under `images/`.
+      if (!isAbs && s && !s.startsWith('images/')) s = 'images/' + s;
       var img = document.createElement('img');
       img.src = isAbs ? s : (prefix + s);
       img.alt = '';
@@ -356,6 +717,9 @@
     var s = String(src || '');
     var isAbs = /^https?:\/\//i.test(s);
     if (!isAbs && s.startsWith('/')) s = s.slice(1);
+    // Content may store paths relative to the `images/` dir (e.g. `project-overviews/...`).
+    // Normalize to `images/<path>` for the runtime site which expects assets under `images/`.
+    if (!isAbs && s && !s.startsWith('images/')) s = 'images/' + s;
     return isAbs ? s : (prefix + s);
   }
 
@@ -517,9 +881,14 @@
     if (!slug) return;
 
     var prefix = rootPrefix();
-    var url = prefix + 'content/projects/' + slug + '.yml';
-    var yml = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
-    var data = parseYaml(yml) || {};
+    var data = (SDV_PREVIEW.projectsBySlug && SDV_PREVIEW.projectsBySlug[slug])
+      ? (SDV_PREVIEW.projectsBySlug[slug] || {})
+      : null;
+    if (!data) {
+      var url = prefix + 'content/projects/' + slug + '.yml';
+      var yml = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
+      data = parseYaml(yml) || {};
+    }
 
     if (data.header_title || data.title) {
       title.textContent = String(data.header_title || data.title);
@@ -533,7 +902,16 @@
 
     var materialsHost = document.getElementById('project-materials');
     if (materialsHost) {
-      materialsHost.innerHTML = data.materials_markdown ? renderMarkdown(String(data.materials_markdown)) : '';
+      var matsHtml = data.materials_markdown ? renderMarkdown(String(data.materials_markdown)) : '';
+      var matKeys = extractMaterialKeysForProject(data);
+      var icons = renderMaterialIcons(matKeys);
+      var iconsWrap = icons ? ('<div class="project-material-icons" aria-hidden="true">' + icons + '</div>') : '';
+      materialsHost.innerHTML = matsHtml + iconsWrap;
+    }
+
+    var linksHost = document.getElementById('project-links');
+    if (linksHost) {
+      linksHost.innerHTML = renderProjectLinksHtml(data.links, prefix);
     }
 
     // Optional toggle to hide overview → immersive navigation.
@@ -575,16 +953,48 @@
     return prefix + s;
   }
 
+  function renderProjectLinksHtml(links, prefix) {
+    if (!Array.isArray(links) || !links.length) return '';
+    var items = links.map(function (item) {
+      if (!item) return '';
+      var label = '';
+      var url = '';
+      if (typeof item === 'string') {
+        label = String(item);
+        url = String(item);
+      } else {
+        label = item.label ? String(item.label) : '';
+        url = item.url ? String(item.url) : '';
+      }
+      label = label.trim();
+      url = url.trim();
+      if (!label && !url) return '';
+      var href = escapeHtml(safeHref(url || label, prefix));
+      var text = escapeHtml(label || url);
+      return '<li><a href="' + href + '" target="_blank" rel="noopener">' + text + '</a></li>';
+    }).filter(Boolean);
+    if (!items.length) return '';
+    return '<p><strong>Links</strong></p><ul>' + items.join('') + '</ul>';
+  }
+
   async function loadInfoLinks() {
     var host = document.getElementById('info-links');
     var bioHost = document.getElementById('bio-content');
     if (!host && !bioHost) return;
     var prefix = rootPrefix();
-    var url = prefix + 'content/info.md';
-    var raw = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
-    var parsed = parseFrontmatter(raw);
-    var data = parsed.data || {};
-    var bioMd = parsed.body || '';
+    var data = null;
+    var bioMd = '';
+
+    if (SDV_PREVIEW.info) {
+      data = SDV_PREVIEW.info.data || {};
+      bioMd = SDV_PREVIEW.info.body || '';
+    } else {
+      var url = prefix + 'content/info.md';
+      var raw = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
+      var parsed = parseFrontmatter(raw);
+      data = parsed.data || {};
+      bioMd = parsed.body || '';
+    }
 
     if (bioHost) {
       bioHost.innerHTML = bioMd
@@ -624,10 +1034,15 @@
     var immersiveRoot = document.querySelector('.immersive-page');
     if (!immersiveRoot) return;
     try {
-      var url = rootPrefix() + 'content/captions.yml';
-      var yml = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
-      var data = parseYaml(yml);
-      var list = (data && Array.isArray(data.captions)) ? data.captions : null;
+      var list = null;
+      if (SDV_PREVIEW.captions && Array.isArray(SDV_PREVIEW.captions.captions)) {
+        list = SDV_PREVIEW.captions.captions;
+      } else {
+        var url = rootPrefix() + 'content/captions.yml';
+        var yml = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
+        var data = parseYaml(yml);
+        list = (data && Array.isArray(data.captions)) ? data.captions : null;
+      }
       if (list) {
         window.SDV_CAPTIONS = list;
         window.dispatchEvent(new Event('sdv:captions'));
@@ -638,6 +1053,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
+    preservePreviewLinks();
     loadInfoLinks().catch(function () {
       var host = document.getElementById('info-links');
       if (host) host.innerHTML = '<p>Links failed to load.</p>';
