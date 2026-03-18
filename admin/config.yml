@@ -11,8 +11,8 @@ publish_mode: editorial_workflow
 # Store and reference media relative to the site's `images/` directory.
 # This allows projects to use paths like `project-overviews/...` and `uploads/...`
 # while still resolving correctly on the live site as `/images/<path>`.
-media_folder: "images"
-public_folder: "/images"
+media_folder: "images/uploads"
+public_folder: "/images/uploads"
 
 site_url: "https://unrivaled-pasca-4201ab.netlify.app"
 display_url: "unrivaled-pasca-4201ab.netlify.app"
