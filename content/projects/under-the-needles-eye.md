@@ -18,21 +18,21 @@ links:
   - label: Watch video essay (Swedish)
     url: https://vimeo.com/920974931
 gallery:
-  - /images/project-overviews/under-the-needles-eye/1_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/2_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/3_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/4_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/5_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/6_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/7_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/8_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/9_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/10_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/11_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/12_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/13_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/14_needle.jpg
-  - /images/project-overviews/under-the-needles-eye/15_needle.jpg
+  - /images/uploads/needle-1.jpg
+  - /images/uploads/needle-2.jpg
+  - /images/uploads/needle-3.jpg
+  - /images/uploads/needle-4.jpg
+  - /images/uploads/needle-5.jpg
+  - /images/uploads/needle-6.jpg
+  - /images/uploads/needle-7.jpg
+  - /images/uploads/needle-8.jpg
+  - /images/uploads/needle-9.jpg
+  - /images/uploads/needle-10.jpg
+  - /images/uploads/needle-11.jpg
+  - /images/uploads/needle-12.jpg
+  - /images/uploads/needle-13.jpg
+  - /images/uploads/needle-14.jpg
+  - /images/uploads/needle-15.jpg
 ---
 
 A lost textile industry forms the departing point of Stacey de Voe's exhibition **Under the Needle's Eye** (Under nålens öga). In Kürzel's Factory (1896-1955), where Skånes konstförening’s premises are located, worked spinners, dyers, and weavers; union representatives; and managers. de Voe engages with the context and develops site-specific works that stage the memory of the locale as an intricate supervisor and a world dressed in tartan and duvetyne.

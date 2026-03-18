@@ -23,46 +23,46 @@ falls:
   - label: Fall 1
     type: Exhibition
     images:
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-1.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-2.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-3.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-4.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-5.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-6.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-7.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-8.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-9.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-10.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-11.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-12.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-13.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-14.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-15.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-16.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-17.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-18.jpg
+      - /images/uploads/fall-1-1.jpg
+      - /images/uploads/fall-1-2.jpg
+      - /images/uploads/fall-1-3.jpg
+      - /images/uploads/fall-1-4.jpg
+      - /images/uploads/fall-1-5.jpg
+      - /images/uploads/fall-1-6.jpg
+      - /images/uploads/fall-1-7.jpg
+      - /images/uploads/fall-1-8.jpg
+      - /images/uploads/fall-1-9.jpg
+      - /images/uploads/fall-1-10.jpg
+      - /images/uploads/fall-1-11.jpg
+      - /images/uploads/fall-1-12.jpg
+      - /images/uploads/fall-1-13.jpg
+      - /images/uploads/fall-1-14.jpg
+      - /images/uploads/fall-1-15.jpg
+      - /images/uploads/fall-1-16.jpg
+      - /images/uploads/fall-1-17.jpg
+      - /images/uploads/fall-1-18.jpg
   - label: Fall 2
     type: Exhibition
     images:
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-1.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-2.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-3.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-4.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-5.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-6.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-7.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-2-8.jpg
+      - /images/uploads/fall-2-1.jpg
+      - /images/uploads/fall-2-2.jpg
+      - /images/uploads/fall-2-3.jpg
+      - /images/uploads/fall-2-4.jpg
+      - /images/uploads/fall-2-5.jpg
+      - /images/uploads/fall-2-6.jpg
+      - /images/uploads/fall-2-7.jpg
+      - /images/uploads/fall-2-8.jpg
   - label: Fall 3
     type: Performance Lecture
     images:
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-3-1.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-3-2.jpeg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-3-3.jpeg
+      - /images/uploads/fall-3-1.jpg
+      - /images/uploads/fall-3-2.jpeg
+      - /images/uploads/fall-3-3.jpeg
   - label: Fall 4
     type: Future Fall
     images:
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-14.jpg
-      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-14.jpg
+      - /images/uploads/fall-1-14.jpg
+      - /images/uploads/fall-1-14.jpg
 ---
 Stacey de Voe's **The Spontaneous Dance Falls** drifts across histories of collective movement, lingering in the places where bodies in motion have unsettled authority and opened fleeting horizons of possibility. What do we lose when dance is contained, and what might be unleashed when we let it overflow?
 
