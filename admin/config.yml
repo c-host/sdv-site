@@ -152,7 +152,7 @@ collections:
           - label: "Overview"
             name: "overview_markdown"
             widget: "markdown"
-            modes: ["rich_text"]
+            modes: ["raw"]
             buttons:
               - bold
               - italic
@@ -166,7 +166,7 @@ collections:
             name: "materials_markdown"
             widget: "markdown"
             required: false
-            modes: ["rich_text"]
+            modes: ["raw"]
             buttons:
               - bold
               - italic
@@ -247,7 +247,7 @@ collections:
           - label: "Overview"
             name: "overview_markdown"
             widget: "markdown"
-            modes: ["rich_text"]
+            modes: ["raw"]
             buttons:
               - bold
               - italic
@@ -261,7 +261,7 @@ collections:
             name: "materials_markdown"
             widget: "markdown"
             required: false
-            modes: ["rich_text"]
+            modes: ["raw"]
             buttons:
               - bold
               - italic
@@ -330,7 +330,7 @@ collections:
           - label: "Overview"
             name: "overview_markdown"
             widget: "markdown"
-            modes: ["rich_text"]
+            modes: ["raw"]
             buttons:
               - bold
               - italic
@@ -344,7 +344,7 @@ collections:
             name: "materials_markdown"
             widget: "markdown"
             required: false
-            modes: ["rich_text"]
+            modes: ["raw"]
             buttons:
               - bold
               - italic
