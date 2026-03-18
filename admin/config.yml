@@ -3,7 +3,7 @@ backend:
   branch: main
 
 # Local backend for development
-local_backend: true
+# local_backend: true
 
 # Safer editing: saves drafts first, then explicit Publish.
 publish_mode: editorial_workflow
