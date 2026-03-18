@@ -7,21 +7,21 @@ home_materials:
   - Archive
   - A/V
   - Performance
-  - Objects
 header_title: The Spontaneous Dance Falls
 materials:
   - Glass (blown and cast)
   - Mannequins
   - Archival documents and legal texts
   - Textile remnants
-  - Industrial shelving
   - Metal hardware
   - Video/sound installation
   - Performance and movement scores
-links: []
+links:
+  - label: Portrait
+    url: https://kunstkritikk.com/portrait-of-a-generation/
 falls:
-  - label: "Fall 1"
-    type: "Exhibition"
+  - label: Fall 1
+    type: Exhibition
     images:
       - /images/project-overviews/the-spontaneous-dance-falls/fall-1-1.jpg
       - /images/project-overviews/the-spontaneous-dance-falls/fall-1-2.jpg
@@ -41,8 +41,8 @@ falls:
       - /images/project-overviews/the-spontaneous-dance-falls/fall-1-16.jpg
       - /images/project-overviews/the-spontaneous-dance-falls/fall-1-17.jpg
       - /images/project-overviews/the-spontaneous-dance-falls/fall-1-18.jpg
-  - label: "Fall 2"
-    type: "Exhibition"
+  - label: Fall 2
+    type: Exhibition
     images:
       - /images/project-overviews/the-spontaneous-dance-falls/fall-2-1.jpg
       - /images/project-overviews/the-spontaneous-dance-falls/fall-2-2.jpg
@@ -52,14 +52,18 @@ falls:
       - /images/project-overviews/the-spontaneous-dance-falls/fall-2-6.jpg
       - /images/project-overviews/the-spontaneous-dance-falls/fall-2-7.jpg
       - /images/project-overviews/the-spontaneous-dance-falls/fall-2-8.jpg
-  - label: "Fall 3"
-    type: "Performance Lecture"
+  - label: Fall 3
+    type: Performance Lecture
     images:
       - /images/project-overviews/the-spontaneous-dance-falls/fall-3-1.jpg
       - /images/project-overviews/the-spontaneous-dance-falls/fall-3-2.jpeg
       - /images/project-overviews/the-spontaneous-dance-falls/fall-3-3.jpeg
+  - label: Fall 4
+    type: Future Fall
+    images:
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-14.jpg
+      - /images/project-overviews/the-spontaneous-dance-falls/fall-1-14.jpg
 ---
-
 Stacey de Voe's **The Spontaneous Dance Falls** drifts across histories of collective movement, lingering in the places where bodies in motion have unsettled authority and opened fleeting horizons of possibility. What do we lose when dance is contained, and what might be unleashed when we let it overflow?
 
 The inquiry begins with the story of Frau Troffea and the 1518 “dancing plague” in Strasbourg, and stretches toward the recently abolished Swedish danstillstånd (1956-2023), a law that once demanded a permit to dance in public. Between these points runs a thread of unease: moments when dance, spontaneous or communal, became suspect, regulated, or forced back into containment. Rather than weaving these fragments into a continuous chronology, de Voe attends to the archive's silences and contradictions, letting a discontinuous but resonant history take shape.
@@ -72,5 +76,4 @@ de Voe stages these tensions in installations and performances that summon the g
 
 At skēnē, The Spontaneous Dance Falls continues from earlier chapters shown at Hägerstensåsens Medborgarhus in Stockholm and at Simian in Copenhagen. It extends de Voe's ongoing exploration of how dance can be read as archive, as spectacle, and as rehearsal for other ways of living together—a fragile yet insistent practice of world-making, where utopian possibility flickers in step, rhythm, and breath.
 
-**Text by** Karin Bähler Lavér
-
+*Text by Karin Bähler Lavér*
