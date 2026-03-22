@@ -3,45 +3,20 @@
   --bg: #E0DBD7;
   --fg: #1a1a1a;
   --muted: #6b6b6b;
-  --line: #ccc;
+  --line: #7e7777;
+  /* Home crosshair + hero frame only; set from js/app.js when a project is selected. */
+  --home-line-accent: #7e7777;
   --gap: 1rem;
   --gap-large: 2.5rem;
   --radius: 2px;
   --font: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  /* Filled or overridden by js/content-loader.js from Sanity Typography (see siteTypography). */
+  --font-prose: var(--font);
+  --font-strong: var(--font);
+  --font-light: var(--font);
+  --font-accent: var(--font);
   --inset: 20pt;
   --abstraction-margin: 48pt;
-}
-
-@font-face {
-  font-family: "JL Joseleen";
-  src: url("../fonts/JLJoseleen-2018Reg.otf") format("opentype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Adieu Bold";
-  src: url("../fonts/Adieu-Bold.otf") format("opentype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Grotta Light";
-  src: url("../fonts/Grotta-light.ttf") format("truetype");
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Grotta Semibold";
-  src: url("../fonts/Grotta-semibold.ttf") format("truetype");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
 }
 
 /* --- Reset & base --- */
@@ -67,7 +42,7 @@ body {
 }
 
 p {
-  font-family: "Grotta Medium", var(--font);
+  font-family: var(--font-prose), var(--font);
   font-size: 16px;
 }
 
@@ -90,71 +65,47 @@ img {
   display: none !important;
 }
 
-/* ========== SPLASH ========== */
-.view--splash {
-  align-items: center;
-  justify-content: center;
-}
-
-.splash-line {
-  position: absolute;
-  background: var(--line);
-}
-
-.splash-line--vertical {
-  width: 1px;
-  height: 100%;
-  left: 50%;
-  top: 0;
-  transform: translateX(-50%);
-}
-
-.splash-line--horizontal {
-  display: none;
-  width: 100%;
-  height: 1px;
-  top: 50%;
-  left: 0;
-  transform: translateY(-50%);
-}
-
-@media (max-width: 599px) {
-  .splash-line--vertical {
-    display: none;
-  }
-
-  .splash-line--horizontal {
-    display: block;
-  }
-}
-
-.splash-image-wrap {
-  position: relative;
-  z-index: 1;
-  padding: 0;
-  border: 2px solid var(--line);
-  background: none;
-  cursor: pointer;
-}
-
-.splash-image {
-  width: 180px;
-  height: 180px;
-  object-fit: cover;
-}
-
-@media (min-width: 600px) {
-  .splash-image {
-    width: 240px;
-    height: 240px;
-  }
-}
-
 /* ========== HOME ========== */
 .view--home {
   align-items: center;
   justify-content: center;
   padding: var(--gap);
+}
+
+.home-sdv-mark {
+  position: absolute;
+  pointer-events: none;
+  font-family: var(--font-strong), var(--font);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: var(--fg);
+  opacity: 0.82;
+  z-index: 2;
+  display: none;
+}
+
+.view--home:not(.is-home-idle) .home-sdv-mark {
+  display: block;
+}
+
+@media (min-width: 600px) {
+  .view--home:not(.is-home-idle) .home-sdv-mark {
+    bottom: var(--gap);
+    right: var(--gap);
+    top: auto;
+    left: auto;
+  }
+}
+
+@media (max-width: 599px) {
+  .view--home:not(.is-home-idle) .home-sdv-mark {
+    top: var(--gap);
+    left: var(--gap);
+    bottom: auto;
+    right: auto;
+  }
 }
 
 .home-info-link {
@@ -168,12 +119,10 @@ img {
 }
 
 @media (max-width: 599px) {
-
-  /* Keep the info icon off the Materials row on small screens. */
   .home-info-link {
-    top: 50%;
+    top: var(--gap);
     right: var(--gap);
-    transform: translateY(-50%);
+    transform: none;
     width: 2.25rem;
     height: 2.25rem;
     display: flex;
@@ -183,6 +132,10 @@ img {
     border: 1px solid var(--line);
     font-size: 1.2rem;
     line-height: 1;
+  }
+
+  #home-material-filter {
+    display: none !important;
   }
 }
 
@@ -209,7 +162,7 @@ img {
 }
 
 .home-material-title {
-  font-family: "Grotta Semibold", var(--font);
+  font-family: var(--font-strong), var(--font);
   font-weight: 600;
   font-size: 0.9rem;
   letter-spacing: 0.04em;
@@ -218,7 +171,7 @@ img {
 }
 
 .home-material-status {
-  font-family: "Grotta Medium", var(--font);
+  font-family: var(--font-prose), var(--font);
   font-size: 0.9rem;
   opacity: 0.7;
   white-space: nowrap;
@@ -264,7 +217,7 @@ img {
 
 .home-line {
   position: absolute;
-  background: var(--line);
+  background: var(--home-line-accent);
 }
 
 .home-line--vertical {
@@ -313,7 +266,9 @@ img {
   align-items: center;
   gap: var(--gap);
   flex-shrink: 0;
-  pointer-events: auto;
+  z-index: 0;
+  /* Let clicks pass through flex gaps so project list (z-index above) stays usable on short viewports. */
+  pointer-events: none;
 }
 
 @media (max-width: 599px) {
@@ -326,28 +281,77 @@ img {
 
 .home-image-wrap {
   flex-shrink: 0;
-}
-
-.home-image-wrap img {
+  position: relative;
+  z-index: 1;
+  /* Re-enable hits: .home-center uses pointer-events:none (inherits to children without this). */
+  pointer-events: auto;
+  container-type: size;
+  container-name: homeimage;
   width: 200px;
   height: 200px;
-  object-fit: cover;
-  border: 2px solid var(--line);
+  border: 2px solid var(--home-line-accent);
+  box-sizing: border-box;
+  /* Opaque fill so viewport crosshair (.home-line) does not show through the square. */
+  background: var(--bg);
+}
+
+.view--home.is-home-idle .home-image-wrap {
+  cursor: default;
+}
+
+.view--home:not(.is-home-idle) .home-image-wrap {
+  cursor: pointer;
 }
 
 @media (min-width: 600px) {
-  .home-image-wrap img {
+  .home-image-wrap {
     width: clamp(200px, 25vw, 280px);
     height: clamp(200px, 25vw, 280px);
   }
 }
 
+.home-idle-title {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.2em 0.15em;
+  box-sizing: border-box;
+  font-family: var(--font-strong), var(--font);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--fg);
+  pointer-events: none;
+  font-size: clamp(0.65rem, 22cqmin, 2.85rem);
+}
+
+.home-image-wrap.is-project-selected .home-idle-title {
+  display: none;
+}
+
+.home-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: none;
+  box-sizing: border-box;
+}
+
 .home-zoom-btn {
   padding: 6px 6.8px 5px 7px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--home-line-accent);
   background: var(--bg);
   color: var(--fg);
   cursor: pointer;
+  pointer-events: auto;
+}
+
+.view--home.is-home-idle .home-zoom-btn {
+  display: none;
 }
 
 .home-zoom-btn .icon-magnifier {
@@ -367,6 +371,42 @@ img {
   }
 }
 
+@media (max-width: 420px) {
+  .view--home {
+    --gap: 0.65rem;
+  }
+
+  .home-image-wrap {
+    width: min(168px, 46vw);
+    height: min(168px, 46vw);
+  }
+
+  .home-zoom-btn {
+    padding: 4px 5px 3px 5px;
+    margin-left: 0.5rem;
+  }
+
+  .home-zoom-btn .icon-magnifier {
+    width: 20px;
+    height: 20px;
+  }
+
+  .home-info-link {
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.05rem;
+  }
+
+  .home-center {
+    gap: 0.5rem;
+  }
+
+  .view--home:not(.is-home-idle) .home-sdv-mark {
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+  }
+}
+
 /* Titles: full width of one side of the line, no wrap, no intersection with image */
 .home-projects {
   display: flex;
@@ -374,6 +414,8 @@ img {
   gap: 1rem;
   padding: var(--gap);
   box-sizing: border-box;
+  position: relative;
+  z-index: 2;
 }
 
 @media (min-width: 600px) {
@@ -527,7 +569,7 @@ img {
   padding: var(--gap);
   font-size: 1.25rem;
   font-weight: 600;
-  font-family: "Grotta Semibold", var(--font);
+  font-family: var(--font-strong), var(--font);
 }
 
 .info-scroll {
@@ -572,7 +614,7 @@ img {
   padding: 1rem 1.25rem 0.75rem 1.5rem;
   color: var(--fg);
   text-decoration: none;
-  font-family: "Grotta Semibold", var(--font);
+  font-family: var(--font-strong), var(--font);
 }
 
 .project-split {
@@ -662,14 +704,14 @@ img {
   padding-bottom: 0.5rem;
   font-size: 1.25rem;
   background: var(--bg);
-  font-family: "Grotta Semibold", var(--font);
+  font-family: var(--font-strong), var(--font);
   font-weight: 600;
 }
 
 .project-scroll h3 {
   margin: 1.5rem 0 0.75rem;
   font-size: 1rem;
-  font-family: "Grotta Semibold", var(--font);
+  font-family: var(--font-strong), var(--font);
   font-weight: 600;
 }
 
@@ -883,7 +925,7 @@ img {
 }
 
 .immersive-back-overview {
-  font-family: "Grotta Semibold", var(--font);
+  font-family: var(--font-strong), var(--font);
   font-weight: 600;
 }
 
@@ -1145,7 +1187,7 @@ img {
 .immersive-story__text {
   position: relative;
   z-index: 1;
-  font-family: "Grotta Light", var(--font);
+  font-family: var(--font-light), var(--font);
   margin-top: auto;
   padding: 2.5rem 2.5rem 2.75rem;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 40%, transparent);
@@ -1157,7 +1199,7 @@ img {
   font-size: 1.6rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  font-family: "Grotta Semibold", var(--font);
+  font-family: var(--font-strong), var(--font);
   font-weight: 600;
 }
 
@@ -1383,7 +1425,7 @@ img {
   border: none;
   background: transparent;
   color: #b8860b;
-  font-family: "Adieu Bold", var(--font);
+  font-family: var(--font-accent), var(--font);
   font-weight: 400;
   font-size: 1.4rem;
   cursor: pointer;

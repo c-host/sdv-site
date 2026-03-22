@@ -9,7 +9,8 @@
 </head>
 
 <body>
-  <section class="view view--home">
+  <section class="view view--home is-home-idle">
+    <div class="home-sdv-mark" aria-hidden="true">SDV</div>
     <a href="info/" class="home-info-link" aria-label="Bio, links, and CV">ⓘ</a>
     <div class="home-material-filter" id="home-material-filter" aria-label="Materials" aria-live="polite"></div>
     <div class="home-line home-line--vertical" aria-hidden="true"></div>
@@ -18,7 +19,8 @@
       <nav class="home-projects" aria-label="Projects"></nav>
       <div class="home-center">
         <div class="home-image-wrap">
-          <img id="home-project-image" src="images/home/fall.jpg" alt="" />
+          <div class="home-idle-title" aria-hidden="true">Stacy de Voe</div>
+          <img id="home-project-image" alt="" hidden />
         </div>
         <button type="button" class="home-zoom-btn" aria-label="Open selected project" title="Open selected project">
           <svg class="icon-magnifier" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">

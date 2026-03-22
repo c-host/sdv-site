@@ -100,6 +100,12 @@
     if (d._type === 'homePage') SDV_PREVIEW.homeProjects = null;
     if (d._type === 'info') SDV_PREVIEW.info = null;
     if (d._type === 'captions') SDV_PREVIEW.captions = null;
+    if (d._type === 'siteTypography' || d._type === 'fontUpload') {
+      try {
+        var ty = document.getElementById('sdv-typography');
+        if (ty) ty.remove();
+      } catch (e) { }
+    }
   }
 
   function resetPreviewSanityClient() {
@@ -118,6 +124,7 @@
       loadHomeMaterials().catch(function () { }),
       loadCaptions().catch(function () { }),
       loadImmersiveContent().catch(function () { }),
+      loadTypography().catch(function () { }),
     ]);
   }
 
@@ -182,7 +189,39 @@
     return publicSanityClient;
   }
 
+  /**
+   * Published reads via Sanity CDN (single fetch). Avoids loading @sanity/client from esm.sh
+   * (hundreds of tiny module requests). Draft/preview with token still uses the full client.
+   */
+  async function sanityFetchCdn(query, params) {
+    var apiVer =
+      SANITY_API_VERSION.indexOf('v') === 0 ? SANITY_API_VERSION : 'v' + SANITY_API_VERSION;
+    var url =
+      'https://' +
+      encodeURIComponent(SANITY_PROJECT_ID) +
+      '.apicdn.sanity.io/' +
+      encodeURIComponent(apiVer) +
+      '/data/query/' +
+      encodeURIComponent(SANITY_DATASET);
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: query, params: params || {} }),
+    });
+    var json = await res.json().catch(function () {
+      return {};
+    });
+    if (!res.ok) {
+      var msg = (json && json.message) || res.statusText || String(res.status);
+      throw new Error(msg);
+    }
+    return json.result;
+  }
+
   async function sanityFetch(query, params) {
+    if (!canUseDraftPreview()) {
+      return sanityFetchCdn(query, params);
+    }
     var client = await getSanityFetchClient();
     return client.fetch(query, params || {});
   }
@@ -403,6 +442,7 @@
 
   function normalizeSanityProject(data) {
     var d = data || {};
+    var hc = d.homeLineColor != null ? String(d.homeLineColor).trim() : '';
     return {
       slug: d.slug || '',
       immersive_enabled: d.immersive_enabled,
@@ -413,6 +453,7 @@
       links: Array.isArray(d.links) ? d.links : [],
       gallery: Array.isArray(d.gallery) ? d.gallery : [],
       falls: Array.isArray(d.falls) ? d.falls : [],
+      homeLineColor: hc,
       _updatedAt: d._updatedAt || '',
     };
   }
@@ -473,6 +514,129 @@
     if (!isAbs && s.startsWith('/')) s = s.slice(1);
     if (!isAbs && s && !s.startsWith('images/')) s = 'images/' + s;
     return isAbs ? s : (prefix + s);
+  }
+
+  var SYSTEM_FONT_STACKS = {
+    'system-ui':
+      'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    georgia: 'Georgia, "Times New Roman", Times, serif',
+    times: '"Times New Roman", Times, Georgia, serif',
+    palatino: 'Palatino, "Palatino Linotype", "Book Antiqua", serif',
+    mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+  };
+
+  function fontFormatFromUrl(url) {
+    var u = String(url || '')
+      .split('?')[0]
+      .toLowerCase();
+    if (u.endsWith('.woff2')) return 'woff2';
+    if (u.endsWith('.woff')) return 'woff';
+    if (u.endsWith('.otf')) return 'opentype';
+    if (u.endsWith('.ttf')) return 'truetype';
+    return 'woff2';
+  }
+
+  function sanitizeCssFamilyName(name) {
+    return String(name || '')
+      .replace(/["'<>]/g, '')
+      .trim()
+      .slice(0, 120);
+  }
+
+  function resolveFontFileUrl(field) {
+    if (!field || !field.asset) return '';
+    var a = field.asset;
+    if (a.url) return String(a.url);
+    if (a._ref) return sanityAssetUrlFromRef(a._ref);
+    return '';
+  }
+
+  function resolveFontRole(choice, faceSink) {
+    var fallback = SYSTEM_FONT_STACKS['system-ui'];
+    if (!choice || choice.source === 'system' || !choice.source) {
+      var preset = choice && choice.systemPreset ? String(choice.systemPreset) : 'system-ui';
+      return SYSTEM_FONT_STACKS[preset] || fallback;
+    }
+    var ref = choice.fontRef;
+    if (!ref) return fallback;
+    var family = sanitizeCssFamilyName(ref.cssFamily);
+    if (!family) return fallback;
+    var url = resolveFontFileUrl(ref.fontFile);
+    if (!url) return '"' + family + '", ' + fallback;
+    var fmt = fontFormatFromUrl(url);
+    var weight = ref.fontWeight != null ? Number(ref.fontWeight) : 400;
+    var style = ref.fontStyle === 'italic' ? 'italic' : 'normal';
+    var key = ref._id || url;
+    if (faceSink && key && !faceSink.seen[key]) {
+      faceSink.seen[key] = true;
+      var famEsc = family.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      var urlEsc = url.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      faceSink.css +=
+        '@font-face{font-family:"' +
+        famEsc +
+        '";src:url("' +
+        urlEsc +
+        '") format("' +
+        fmt +
+        '");font-weight:' +
+        weight +
+        ';font-style:' +
+        style +
+        ';font-display:swap;}';
+    }
+    return '"' + family + '", ' + fallback;
+  }
+
+  function buildTypographyStyles(doc) {
+    var sink = { seen: {}, css: '' };
+    var base = resolveFontRole(doc && doc.baseUi, sink);
+    var prose = resolveFontRole(doc && doc.prose, sink);
+    var strong = resolveFontRole(doc && doc.strongUi, sink);
+    var light = resolveFontRole(doc && doc.lightUi, sink);
+    var accent = resolveFontRole(doc && doc.accent, sink);
+    return (
+      sink.css +
+      ':root{--font:' +
+      base +
+      ';--font-prose:' +
+      prose +
+      ';--font-strong:' +
+      strong +
+      ';--font-light:' +
+      light +
+      ';--font-accent:' +
+      accent +
+      ';}'
+    );
+  }
+
+  async function loadTypography() {
+    try {
+      var doc = await sanityFetch(
+        '*[_id in ["siteTypography", "drafts.siteTypography"]]|order(_updatedAt desc)[0]{' +
+          'baseUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
+          'prose{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
+          'strongUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
+          'lightUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
+          'accent{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}}' +
+          '}',
+      );
+      if (!doc) {
+        var rm = document.getElementById('sdv-typography');
+        if (rm) rm.remove();
+        return;
+      }
+      var css = buildTypographyStyles(doc);
+      var el = document.getElementById('sdv-typography');
+      if (!el) {
+        el = document.createElement('style');
+        el.id = 'sdv-typography';
+        document.head.appendChild(el);
+      }
+      el.textContent = css;
+    } catch (e) {
+      // Keep stylesheet defaults
+    }
   }
 
   function dispatchImmersiveReady(slug) {
@@ -648,9 +812,10 @@
     '"][0]{\n' +
     '  entries[]{\n' +
     '    navLabel,\n' +
+    '    homeLineColor,\n' +
     '    splashImage,\n' +
     '    "proj": project->{\n' +
-    '      slug, home_materials, immersive_enabled, header_title,\n' +
+    '      slug, homeLineColor, home_materials, immersive_enabled, header_title,\n' +
     '      body, materials, links, falls, gallery, _updatedAt\n' +
     '    }\n' +
     '  }\n' +
@@ -658,11 +823,65 @@
 
   var PROJECT_FALLBACK_GROQ =
     '*[_type == "project"]{\n' +
-    '  slug, home_materials, immersive_enabled, header_title,\n' +
+    '  slug, homeLineColor, home_materials, immersive_enabled, header_title,\n' +
     '  body, materials, links, falls, gallery, _updatedAt\n' +
     '}';
 
   var FALLBACK_SLUG_ORDER = ['the-spontaneous-dance-falls', 'under-the-needles-eye', 'overlocked'];
+
+  /** When Sanity is unreachable or returns no projects, still render home nav + materials (matches content/home.json). */
+  function getOfflineHomeProjects() {
+    return [
+      {
+        slug: 'the-spontaneous-dance-falls',
+        header_title: 'The Spontaneous Dance Falls',
+        home_materials: ['Glass', 'Textile', 'Metal', 'Archive', 'A/V', 'Performance'],
+        materials: [],
+        gallery: ['images/home/fall.jpg'],
+        immersive_enabled: true,
+        body: [],
+        links: [],
+        falls: [],
+        homeLineColor: '#3f3739',
+        _updatedAt: '',
+        _homeNavLabelOverride: '',
+        _homeSplashOverride: null,
+        _homeLineColor: '#3f3739',
+      },
+      {
+        slug: 'under-the-needles-eye',
+        header_title: "Under the Needle's Eye",
+        home_materials: ['Textile', 'Metal', 'Archive', 'A/V'],
+        materials: [],
+        gallery: ['images/home/needle.jpg'],
+        immersive_enabled: true,
+        body: [],
+        links: [],
+        falls: [],
+        homeLineColor: '#713b38',
+        _updatedAt: '',
+        _homeNavLabelOverride: '',
+        _homeSplashOverride: null,
+        _homeLineColor: '#713b38',
+      },
+      {
+        slug: 'overlocked',
+        header_title: 'overlocked',
+        home_materials: ['Synthetic', 'Textile', 'Archive', 'A/V', 'Objects'],
+        materials: [],
+        gallery: ['images/home/overlocked.jpg'],
+        immersive_enabled: true,
+        body: [],
+        links: [],
+        falls: [],
+        homeLineColor: '#1851a3',
+        _updatedAt: '',
+        _homeNavLabelOverride: '',
+        _homeSplashOverride: null,
+        _homeLineColor: '#1851a3',
+      },
+    ];
+  }
 
   function sortProjectsBySlugOrder(list, orderArr) {
     var idx = {};
@@ -681,27 +900,38 @@
     if (SDV_PREVIEW.homeProjects && Array.isArray(SDV_PREVIEW.homeProjects)) {
       return SDV_PREVIEW.homeProjects;
     }
-    var homeDoc = await sanityFetch(HOME_PAGE_GROQ);
-    var entries = homeDoc && Array.isArray(homeDoc.entries) ? homeDoc.entries : [];
-    var merged = [];
-    for (var ei = 0; ei < entries.length; ei++) {
-      var e = entries[ei] || {};
-      var p = e.proj;
-      if (!p || !p.slug) continue;
-      var base = normalizeSanityProject(p);
-      base._homeNavLabelOverride = e.navLabel && String(e.navLabel).trim() ? String(e.navLabel).trim() : '';
-      base._homeSplashOverride = e.splashImage || null;
-      merged.push(base);
+    try {
+      var homeDoc = await sanityFetch(HOME_PAGE_GROQ);
+      var entries = homeDoc && Array.isArray(homeDoc.entries) ? homeDoc.entries : [];
+      var merged = [];
+      for (var ei = 0; ei < entries.length; ei++) {
+        var e = entries[ei] || {};
+        var p = e.proj;
+        if (!p || !p.slug) continue;
+        var base = normalizeSanityProject(p);
+        base._homeNavLabelOverride = e.navLabel && String(e.navLabel).trim() ? String(e.navLabel).trim() : '';
+        base._homeSplashOverride = e.splashImage || null;
+        var entryLine = e.homeLineColor != null ? String(e.homeLineColor).trim() : '';
+        base._homeLineColor = entryLine || (base.homeLineColor && String(base.homeLineColor).trim()) || '';
+        merged.push(base);
+      }
+      if (merged.length) {
+        SDV_PREVIEW.homeProjects = merged;
+        return merged;
+      }
+      var list = await sanityFetch(PROJECT_FALLBACK_GROQ);
+      var arr = Array.isArray(list) ? list.map(function (d) { return normalizeSanityProject(d || {}); }) : [];
+      var sorted = sortProjectsBySlugOrder(arr, FALLBACK_SLUG_ORDER);
+      if (sorted.length) {
+        SDV_PREVIEW.homeProjects = sorted;
+        return sorted;
+      }
+    } catch (err) {
+      console.warn('[sdv] fetchOrderedProjects failed:', err && err.message ? err.message : err);
     }
-    if (merged.length) {
-      SDV_PREVIEW.homeProjects = merged;
-      return merged;
-    }
-    var list = await sanityFetch(PROJECT_FALLBACK_GROQ);
-    var arr = Array.isArray(list) ? list.map(function (d) { return normalizeSanityProject(d || {}); }) : [];
-    var sorted = sortProjectsBySlugOrder(arr, FALLBACK_SLUG_ORDER);
-    SDV_PREVIEW.homeProjects = sorted;
-    return sorted;
+    var offline = getOfflineHomeProjects();
+    SDV_PREVIEW.homeProjects = offline;
+    return offline;
   }
 
   async function loadHome() {
@@ -720,7 +950,8 @@
           (p._homeNavLabelOverride && String(p._homeNavLabelOverride).trim()) ||
           p.header_title ||
           p.slug;
-        return { slug: p.slug, label: label, splashUrl: splash };
+        var hl = String(p._homeLineColor != null ? p._homeLineColor : p.homeLineColor || '').trim();
+        return { slug: p.slug, label: label, splashUrl: splash, homeLineColor: hl };
       });
 
       var html = '';
@@ -735,7 +966,29 @@
       nav.innerHTML = html;
       window.dispatchEvent(new CustomEvent('sdv:home'));
     } catch (e) {
-      // Non-fatal: keep empty nav if Sanity fails.
+      console.warn('[sdv] loadHome failed:', e && e.message ? e.message : e);
+      try {
+        window.SDV_HOME_PROJECTS = getOfflineHomeProjects().map(function (p) {
+          var prefix = rootPrefix();
+          var splash = '';
+          if (Array.isArray(p.gallery) && p.gallery[0]) splash = resolveImageSrc(p.gallery[0], prefix);
+          var label =
+            (p._homeNavLabelOverride && String(p._homeNavLabelOverride).trim()) || p.header_title || p.slug;
+          var hl2 = String(p._homeLineColor != null ? p._homeLineColor : p.homeLineColor || '').trim();
+          return { slug: p.slug, label: label, splashUrl: splash, homeLineColor: hl2 };
+        });
+        var html2 = '';
+        window.SDV_HOME_PROJECTS.forEach(function (row) {
+          html2 +=
+            '<button type="button" class="home-project" data-slug="' +
+            escapeAttr(row.slug) +
+            '">' +
+            escapeHtml(row.label) +
+            '</button>';
+        });
+        nav.innerHTML = html2;
+        window.dispatchEvent(new CustomEvent('sdv:home'));
+      } catch (e2) { }
     }
   }
 
@@ -1231,6 +1484,18 @@
   document.addEventListener('DOMContentLoaded', function () {
     setupVisualEditingBridge();
     preservePreviewLinks();
+    if (canUseDraftPreview()) {
+      loadTypography().catch(function () { });
+    } else {
+      function runTypography() {
+        loadTypography().catch(function () { });
+      }
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(runTypography, { timeout: 2000 });
+      } else {
+        setTimeout(runTypography, 16);
+      }
+    }
     loadInfoLinks().catch(function () {
       var host = document.getElementById('info-links');
       if (host) host.innerHTML = '<p>Links failed to load.</p>';
