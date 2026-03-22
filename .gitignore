@@ -1,6 +1,6 @@
-context/
-NETLIFY_SETUP.md
+# context/
 README.md
-images/project-overviews/overlocked/frames.txt
-images/project-overviews/under-the-needles-eye/frames.txt
 backups/
+studio-sdv-site/node_modules/
+studio-sdv-site/dist/
+console.log

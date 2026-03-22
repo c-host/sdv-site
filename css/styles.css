@@ -1,6 +1,6 @@
 /* --- Variables (neutral, minimal) --- */
 :root {
-  --bg: #fafafa;
+  --bg: #E0DBD7;
   --fg: #1a1a1a;
   --muted: #6b6b6b;
   --line: #ccc;
@@ -960,6 +960,8 @@ img {
 .law-text {
   font-size: 1rem;
   line-height: 1.6;
+  text-align: center;
+  margin-inline: auto;
 }
 
 .law-heading {
@@ -1007,8 +1009,17 @@ img {
   position: relative;
 }
 
+.law-image-inline:empty {
+  display: none;
+}
+
+.law-image-inline:not(:empty) {
+  display: block;
+}
+
 .law-image-inline img {
   width: 100%;
+  max-width: 100%;
   object-fit: cover;
   margin-top: 0.75rem;
 }

@@ -1,173 +1,278 @@
+/**
+ * Fetches Sanity content for static HTML pages, injects DOM where needed, and wires Presentation
+ * visual editing (history + mutation refetch). Depends on sdv-shared.js (window.SDV).
+ * Globals set: SDV_HOME_PROJECTS, SDV_PROJECT_MATERIALS, SDV_ALL_MATERIALS, SDV_CAPTIONS,
+ * SDV_IMMERSIVE_SLIDER (Needle immersive only). Dispatches: sdv:home, sdv:materials, sdv:captions,
+ * sdv:immersive-ready (detail.slug).
+ */
 (function () {
   'use strict';
 
-  // ---------------------------------------------------------------------------
-  // Decap CMS live preview overrides (iframe -> postMessage -> in-memory store)
-  // ---------------------------------------------------------------------------
+  var SDV = window.SDV;
+  if (!SDV || typeof SDV.rootPrefix !== 'function') {
+    console.warn('[sdv] sdv-shared.js must load before content-loader.js');
+    return;
+  }
+
+  var SANITY_CONFIG = (window.SDV_SANITY_CONFIG && typeof window.SDV_SANITY_CONFIG === 'object')
+    ? window.SDV_SANITY_CONFIG
+    : {};
+  var SANITY_PROJECT_ID = String(SANITY_CONFIG.projectId || 'mei3zxrq');
+  var SANITY_DATASET = String(SANITY_CONFIG.dataset || 'production');
+  var SANITY_API_VERSION = String(SANITY_CONFIG.apiVersion || '2025-02-19');
+
+  function detectStudioUrl() {
+    var configured = String(SANITY_CONFIG.studioUrl || '').trim();
+    if (configured) return configured;
+    try {
+      if (document.referrer) {
+        var ref = new URL(document.referrer);
+        if (/localhost|127\.0\.0\.1|sanity\.studio$/i.test(ref.hostname)) {
+          return ref.origin;
+        }
+      }
+    } catch (e) { }
+    return 'http://127.0.0.1:3333';
+  }
+
+  var SANITY_STUDIO_URL = detectStudioUrl();
 
   var SDV_PREVIEW = {
     projectsBySlug: {},
-    info: null,      // { data: {...}, body: "markdown" }
-    captions: null,  // { captions: [...] }
+    info: null,
+    captions: null,
+    homeProjects: null,
   };
 
-  function isPreviewEnabled() {
+  var isPreviewEnabled = SDV.isPreviewEnabled;
+
+  var PREVIEW_TOKEN_KEY = 'sdv.preview.token';
+  var SDV_PREVIEW_TOKEN = '';
+
+  function getPreviewToken() {
     try {
       var qs = new URLSearchParams(window.location.search || '');
-      return qs.get('sdvPreview') === '1';
+      var tokenFromQuery = String(qs.get('sdvDraftToken') || '').trim();
+      if (tokenFromQuery) {
+        sessionStorage.setItem(PREVIEW_TOKEN_KEY, tokenFromQuery);
+        return tokenFromQuery;
+      }
+      var tokenFromStorage = sessionStorage.getItem(PREVIEW_TOKEN_KEY) || '';
+      return String(tokenFromStorage).trim();
     } catch (e) {
-      return false;
+      return '';
     }
   }
 
-  var PREVIEW_STORAGE_KEY = 'sdv.preview.v1';
+  function canUseDraftPreview() {
+    return isPreviewEnabled() && !!SDV_PREVIEW_TOKEN;
+  }
 
-  function loadPreviewFromStorage() {
+  SDV_PREVIEW_TOKEN = getPreviewToken();
+  var sanityCreateClientPromise = null;
+  var previewSanityClient = null;
+  var previewSanityClientKey = '';
+  var publicSanityClient = null;
+  var visualEditingSetupPromise = null;
+
+  /** Pin versions to studio-sdv-site/package.json (@sanity/client, react, visual-editing). */
+  var SANITY_CLIENT_ESM = 'https://esm.sh/@sanity/client@7.18.0?bundle';
+  var SANITY_VISUAL_EDITING_ESM =
+    'https://esm.sh/@sanity/visual-editing@5.3.1?bundle&deps=react@19.2.4,react-dom@19.2.4,styled-components@6.1.18,@sanity/client@7.18.0';
+
+  function dynamicImport(url) {
+    return Function('u', 'return import(u)')(url);
+  }
+
+  function invalidatePreviewCaches(changedDoc) {
+    var d = changedDoc || {};
+    if (!d._type) {
+      SDV_PREVIEW.projectsBySlug = {};
+      SDV_PREVIEW.info = null;
+      SDV_PREVIEW.captions = null;
+      SDV_PREVIEW.homeProjects = null;
+      return;
+    }
+    if (d._type === 'project') {
+      SDV_PREVIEW.projectsBySlug = {};
+      SDV_PREVIEW.homeProjects = null;
+    }
+    if (d._type === 'homePage') SDV_PREVIEW.homeProjects = null;
+    if (d._type === 'info') SDV_PREVIEW.info = null;
+    if (d._type === 'captions') SDV_PREVIEW.captions = null;
+  }
+
+  function resetPreviewSanityClient() {
+    previewSanityClient = null;
+    previewSanityClientKey = '';
+    publicSanityClient = null;
+  }
+
+  async function refetchAllSanityDrivenContent() {
+    if (isPreviewEnabled()) resetPreviewSanityClient();
+    preservePreviewLinks();
+    await Promise.all([
+      loadInfoLinks().catch(function () { }),
+      loadProject().catch(function () { }),
+      loadHome().catch(function () { }),
+      loadHomeMaterials().catch(function () { }),
+      loadCaptions().catch(function () { }),
+      loadImmersiveContent().catch(function () { }),
+    ]);
+  }
+
+  function presentationApiPerspective() {
+    try {
+      var qs = new URLSearchParams(window.location.search || '');
+      var sp = String(qs.get('sanity-preview-perspective') || '').toLowerCase();
+      if (sp === 'published') return 'published';
+    } catch (e) { }
+    return canUseDraftPreview() ? 'drafts' : 'published';
+  }
+
+  async function getSanityCreateClient() {
+    if (!sanityCreateClientPromise) {
+      sanityCreateClientPromise = dynamicImport(SANITY_CLIENT_ESM).then(function (mod) {
+        var createClient = mod.createClient || (mod.default && mod.default.createClient);
+        if (!createClient) throw new Error('Unable to load @sanity/client createClient');
+        return createClient;
+      });
+    }
+    return sanityCreateClientPromise;
+  }
+
+  async function getPreviewSanityClient() {
+    var createClient = await getSanityCreateClient();
+    var perspective = presentationApiPerspective();
+    var cacheKey =
+      perspective +
+      '|' +
+      String(SDV_PREVIEW_TOKEN || '') +
+      '|' +
+      String(window.location.search || '');
+    if (previewSanityClient && cacheKey === previewSanityClientKey) return previewSanityClient;
+    previewSanityClientKey = cacheKey;
+    var cfg = {
+      projectId: SANITY_PROJECT_ID,
+      dataset: SANITY_DATASET,
+      apiVersion: SANITY_API_VERSION,
+      useCdn: false,
+      perspective: perspective,
+      stega: { enabled: true, studioUrl: SANITY_STUDIO_URL },
+    };
+    if (perspective === 'drafts' && SDV_PREVIEW_TOKEN) cfg.token = SDV_PREVIEW_TOKEN;
+    previewSanityClient = createClient(cfg);
+    return previewSanityClient;
+  }
+
+  async function getSanityFetchClient() {
+    if (isPreviewEnabled()) {
+      return await getPreviewSanityClient();
+    }
+    if (!publicSanityClient) {
+      var createClient = await getSanityCreateClient();
+      publicSanityClient = createClient({
+        projectId: SANITY_PROJECT_ID,
+        dataset: SANITY_DATASET,
+        apiVersion: SANITY_API_VERSION,
+        useCdn: true,
+        perspective: 'published',
+      });
+    }
+    return publicSanityClient;
+  }
+
+  async function sanityFetch(query, params) {
+    var client = await getSanityFetchClient();
+    return client.fetch(query, params || {});
+  }
+
+  async function setupVisualEditingBridge() {
     if (!isPreviewEnabled()) return;
-    try {
-      var raw = sessionStorage.getItem(PREVIEW_STORAGE_KEY);
-      if (!raw) return;
-      var parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') return;
-      if (parsed.projectsBySlug && typeof parsed.projectsBySlug === 'object') {
-        SDV_PREVIEW.projectsBySlug = parsed.projectsBySlug;
-      }
-      if (parsed.info && typeof parsed.info === 'object') {
-        SDV_PREVIEW.info = parsed.info;
-      }
-      if (parsed.captions && typeof parsed.captions === 'object') {
-        SDV_PREVIEW.captions = parsed.captions;
-      }
-    } catch (e) { }
+    if (visualEditingSetupPromise) return visualEditingSetupPromise;
+    visualEditingSetupPromise = dynamicImport(SANITY_VISUAL_EDITING_ESM)
+      .then(function (mod) {
+        var enable = mod.enableVisualEditing || (mod.default && mod.default.enableVisualEditing);
+        if (!enable) throw new Error('Unable to load enableVisualEditing');
+        return enable({
+          zIndex: 2147483000,
+          history: {
+            subscribe: function (navigate) {
+              function pathUrl() {
+                return (
+                  '' +
+                  (window.location.pathname || '') +
+                  (window.location.search || '') +
+                  (window.location.hash || '')
+                );
+              }
+              function syncToPresentation() {
+                try {
+                  navigate({ type: 'push', url: pathUrl() });
+                } catch (e) { }
+              }
+              queueMicrotask(syncToPresentation);
+              var retryT = setTimeout(syncToPresentation, 120);
+              function onPopState() {
+                syncToPresentation();
+              }
+              window.addEventListener('popstate', onPopState);
+              window.addEventListener('hashchange', syncToPresentation);
+              function onPageShow(ev) {
+                if (ev && ev.persisted) syncToPresentation();
+              }
+              window.addEventListener('pageshow', onPageShow);
+              return function () {
+                clearTimeout(retryT);
+                window.removeEventListener('popstate', onPopState);
+                window.removeEventListener('hashchange', syncToPresentation);
+                window.removeEventListener('pageshow', onPageShow);
+              };
+            },
+            update: function (update) {
+              switch (update.type) {
+                case 'push':
+                  return window.history.pushState(null, '', update.url);
+                case 'pop':
+                  return window.history.back();
+                case 'replace':
+                  return window.history.replaceState(null, '', update.url);
+                default:
+                  console.warn('[sdv] Unhandled visual-editing history update', update);
+              }
+            },
+          },
+          refresh: function (payload) {
+            if (payload.source === 'manual') {
+              window.location.reload();
+              return Promise.resolve();
+            }
+            if (payload.source === 'mutation') {
+              invalidatePreviewCaches(payload.document);
+              return refetchAllSanityDrivenContent();
+            }
+            return false;
+          },
+        });
+      })
+      .catch(function (err) {
+        console.warn('[sdv] Sanity visual editing failed to initialize:', err && err.message ? err.message : err);
+      });
+    return visualEditingSetupPromise;
   }
 
-  function savePreviewToStorage() {
-    if (!isPreviewEnabled()) return;
-    try {
-      var payload = {
-        projectsBySlug: SDV_PREVIEW.projectsBySlug || {},
-        info: SDV_PREVIEW.info,
-        captions: SDV_PREVIEW.captions,
-      };
-      sessionStorage.setItem(PREVIEW_STORAGE_KEY, JSON.stringify(payload));
-    } catch (e) { }
-  }
-
-  function clearPreviewStorage() {
-    try {
-      sessionStorage.removeItem(PREVIEW_STORAGE_KEY);
-    } catch (e) { }
-  }
-
-  loadPreviewFromStorage();
-
-  function withPreviewQuery(href) {
-    if (!isPreviewEnabled()) return href;
-    var s = String(href || '');
-    if (!s) return s;
-    if (/^(https?:)?\/\//i.test(s)) return s;
-    if (s.startsWith('#') || s.startsWith('mailto:') || s.startsWith('tel:')) return s;
-    if (s.indexOf('sdvPreview=1') !== -1) return s;
-    return s + (s.indexOf('?') !== -1 ? '&' : '?') + 'sdvPreview=1';
-  }
+  var withPreviewQuery = SDV.withPreviewQuery;
 
   function preservePreviewLinks() {
     if (!isPreviewEnabled()) return;
-    // Ensure any normal <a href> navigation inside the iframe keeps preview mode.
-    // (Some links are static HTML and don't go through app.js handlers.)
     document.querySelectorAll('a[href]').forEach(function (a) {
       var href = a.getAttribute('href') || '';
       if (!href) return;
-      // Skip external links.
       if (/^(https?:)?\/\//i.test(href)) return;
-      // Skip downloads/assets (keep as-is).
       if (/\.(pdf|png|jpe?g|gif|webp|mp4|webm)(\?|#|$)/i.test(href)) return;
       a.setAttribute('href', withPreviewQuery(href));
     });
   }
-
-  function isTrustedPreviewMessage(event) {
-    // In normal deployments, admin and site are same-origin.
-    // When running locally via file://, origin can be "null".
-    try {
-      if (!event) return false;
-      if (event.origin === window.location.origin) return true;
-      if (event.origin === 'null') return true;
-    } catch (e) { }
-    return false;
-  }
-
-  function normalizePreviewPayload(payload) {
-    if (!payload || typeof payload !== 'object') return null;
-    if (payload.collection === 'projects') {
-      var slug = payload.slug ? String(payload.slug) : '';
-      if (!slug) return null;
-      return { kind: 'project', slug: slug, data: payload.data || {} };
-    }
-    if (payload.collection === 'info') {
-      var d = payload.data || {};
-      // Decap uses the configured field name `body` for the markdown body.
-      var body = (d && d.body !== undefined && d.body !== null) ? String(d.body) : '';
-      // Keep all other keys as "frontmatter-like" data.
-      var fm = {};
-      Object.keys(d || {}).forEach(function (k) {
-        if (k === 'body') return;
-        fm[k] = d[k];
-      });
-      return { kind: 'info', data: fm, body: body };
-    }
-    if (payload.collection === 'captions') {
-      var cap = payload.data && Array.isArray(payload.data.captions) ? payload.data.captions : [];
-      return { kind: 'captions', captions: cap };
-    }
-    return null;
-  }
-
-  window.addEventListener('message', function (event) {
-    if (!isTrustedPreviewMessage(event)) return;
-    var msg = event.data;
-    if (!msg || typeof msg !== 'object') return;
-
-    if (msg.type === 'sdv:preview:clear') {
-      SDV_PREVIEW.projectsBySlug = {};
-      SDV_PREVIEW.info = null;
-      SDV_PREVIEW.captions = null;
-      clearPreviewStorage();
-      return;
-    }
-
-    if (msg.type !== 'sdv:preview') return;
-    var normalized = normalizePreviewPayload(msg.payload);
-    if (!normalized) return;
-
-    if (normalized.kind === 'project') {
-      SDV_PREVIEW.projectsBySlug[normalized.slug] = normalized.data || {};
-      savePreviewToStorage();
-      // If we're currently viewing that project page, re-render immediately.
-      var currentSlug = getProjectSlugFromPath();
-      if (currentSlug && currentSlug === normalized.slug) {
-        loadProject().catch(function () { });
-      }
-      // If we're currently viewing the Home page, refresh materials-derived UI.
-      if (document.getElementById('home-project-image')) {
-        scheduleHomeMaterialsRefresh();
-      }
-    } else if (normalized.kind === 'info') {
-      SDV_PREVIEW.info = { data: normalized.data || {}, body: normalized.body || '' };
-      savePreviewToStorage();
-      if (document.getElementById('info-links') || document.getElementById('bio-content')) {
-        loadInfoLinks().catch(function () { });
-      }
-    } else if (normalized.kind === 'captions') {
-      SDV_PREVIEW.captions = { captions: normalized.captions || [] };
-      savePreviewToStorage();
-      // Push into the runtime event pathway immediately if we're on an immersive page.
-      if (document.querySelector('.immersive-page')) {
-        window.SDV_CAPTIONS = SDV_PREVIEW.captions.captions;
-        window.dispatchEvent(new Event('sdv:captions'));
-      }
-    }
-  });
 
   var homeMaterialsRefreshTimer = 0;
   function scheduleHomeMaterialsRefresh() {
@@ -178,14 +283,7 @@
     }, 50);
   }
 
-  function getPathDepth() {
-    var parts = (window.location.pathname || '').split('/').filter(Boolean);
-    return parts.length;
-  }
-
-  function rootPrefix() {
-    return '../'.repeat(getPathDepth());
-  }
+  var rootPrefix = SDV.rootPrefix;
 
   function escapeHtml(s) {
     return String(s)
@@ -196,294 +294,72 @@
       .replace(/'/g, '&#39;');
   }
 
-  function renderInlineMarkdown(s) {
-    var out = escapeHtml(s);
-    out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-    out = out.replace(/~~([^~]+)~~/g, '<del>$1</del>');
-    out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    return out;
+  function escapeAttr(s) {
+    return String(s || '').replace(/"/g, '&quot;');
   }
 
-  function renderMarkdown(md) {
-    var lines = String(md || '').replace(/\r\n/g, '\n').split('\n');
-    var blocks = [];
-    var buf = [];
-    var listBuf = null;
-    var orderedBuf = null;
-    var quoteBuf = null;
+  function renderPortableText(blocks) {
+    if (!Array.isArray(blocks) || !blocks.length) return '';
 
-    function flushParagraph() {
-      if (!buf.length) return;
-      // Keep single newlines as spaces, but don't collapse intentional spacing too aggressively.
-      blocks.push('<p>' + renderInlineMarkdown(buf.join(' ').replace(/\s+/g, ' ').trim()) + '</p>');
-      buf = [];
+    function renderChildren(block) {
+      var children = Array.isArray(block && block.children) ? block.children : [];
+      var markDefs = Array.isArray(block && block.markDefs) ? block.markDefs : [];
+      var markDefMap = {};
+      markDefs.forEach(function (d) {
+        if (d && d._key) markDefMap[d._key] = d;
+      });
+
+      return children.map(function (child) {
+        if (!child || child._type !== 'span') return '';
+        var text = escapeHtml(String(child.text || ''));
+        var marks = Array.isArray(child.marks) ? child.marks.slice() : [];
+
+        marks.forEach(function (mark) {
+          if (mark === 'strong') text = '<strong>' + text + '</strong>';
+          else if (mark === 'em') text = '<em>' + text + '</em>';
+          else if (mark === 'strike-through') text = '<del>' + text + '</del>';
+          else if (markDefMap[mark] && markDefMap[mark]._type === 'link' && markDefMap[mark].href) {
+            text =
+              '<a href="' + escapeAttr(markDefMap[mark].href) + '" target="_blank" rel="noopener">' + text + '</a>';
+          }
+        });
+        return text;
+      }).join('');
     }
+
+    var out = [];
+    var listType = null;
+    var listItems = [];
 
     function flushList() {
-      if (!listBuf || !listBuf.length) return;
-      blocks.push('<ul>' + listBuf.map(function (li) {
-        return '<li>' + renderInlineMarkdown(li) + '</li>';
-      }).join('') + '</ul>');
-      listBuf = null;
+      if (!listType || !listItems.length) return;
+      var tag = listType === 'number' ? 'ol' : 'ul';
+      out.push('<' + tag + '>' + listItems.map(function (li) { return '<li>' + li + '</li>'; }).join('') + '</' + tag + '>');
+      listType = null;
+      listItems = [];
     }
 
-    function flushOrderedList() {
-      if (!orderedBuf || !orderedBuf.length) return;
-      blocks.push('<ol>' + orderedBuf.map(function (li) {
-        return '<li>' + renderInlineMarkdown(li) + '</li>';
-      }).join('') + '</ol>');
-      orderedBuf = null;
-    }
-
-    function flushQuote() {
-      if (!quoteBuf || !quoteBuf.length) return;
-      // Render as paragraphs inside a blockquote.
-      var inner = quoteBuf.map(function (q) {
-        return '<p>' + renderInlineMarkdown(String(q || '').trim()) + '</p>';
-      }).join('');
-      blocks.push('<blockquote>' + inner + '</blockquote>');
-      quoteBuf = null;
-    }
-
-    function isListItem(line) {
-      var t = String(line || '').trim();
-      // Support common list markers from editors: "-", "*", and unicode bullet "•".
-      return /^(-|\*|•)\s+/.test(t);
-    }
-
-    function listItemText(line) {
-      return String(line || '').trim().replace(/^(-|\*|•)\s+/, '').trim();
-    }
-
-    function isOrderedItem(line) {
-      var t = String(line || '').trim();
-      return /^\d+\.\s+/.test(t);
-    }
-
-    function orderedItemText(line) {
-      return String(line || '').trim().replace(/^\d+\.\s+/, '').trim();
-    }
-
-    function isQuoteLine(line) {
-      var t = String(line || '');
-      return /^\s*>\s?/.test(t);
-    }
-
-    function quoteText(line) {
-      return String(line || '').replace(/^\s*>\s?/, '');
-    }
-
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      if (!line.trim()) {
-        flushQuote();
-        flushOrderedList();
-        flushList();
-        flushParagraph();
-        continue;
+    blocks.forEach(function (block) {
+      if (!block || block._type !== 'block') return;
+      var itemText = renderChildren(block);
+      if (block.listItem) {
+        var current = block.listItem === 'number' ? 'number' : 'bullet';
+        if (listType && listType !== current) flushList();
+        listType = current;
+        listItems.push(itemText);
+        return;
       }
-      if (isQuoteLine(line)) {
-        flushParagraph();
-        flushList();
-        flushOrderedList();
-        if (!quoteBuf) quoteBuf = [];
-        quoteBuf.push(quoteText(line));
-        continue;
-      }
-      flushQuote();
-      if (isListItem(line)) {
-        flushParagraph();
-        flushOrderedList();
-        if (!listBuf) listBuf = [];
-        listBuf.push(listItemText(line));
-        continue;
-      }
-      if (isOrderedItem(line)) {
-        flushParagraph();
-        flushList();
-        if (!orderedBuf) orderedBuf = [];
-        orderedBuf.push(orderedItemText(line));
-        continue;
-      }
-      flushOrderedList();
+
       flushList();
-      if (line.startsWith('### ')) {
-        flushParagraph();
-        blocks.push('<h3>' + renderInlineMarkdown(line.slice(4).trim()) + '</h3>');
-        continue;
-      }
-      if (line.startsWith('## ')) {
-        flushParagraph();
-        blocks.push('<h2>' + renderInlineMarkdown(line.slice(3).trim()) + '</h2>');
-        continue;
-      }
-      buf.push(line.trim());
-    }
-    flushQuote();
-    flushOrderedList();
+      var style = block.style || 'normal';
+      if (style === 'h2') out.push('<h2>' + itemText + '</h2>');
+      else if (style === 'h3') out.push('<h3>' + itemText + '</h3>');
+      else if (style === 'blockquote') out.push('<blockquote><p>' + itemText + '</p></blockquote>');
+      else out.push('<p>' + itemText + '</p>');
+    });
+
     flushList();
-    flushParagraph();
-    return blocks.join('\n');
-  }
-
-  function parseFrontmatter(md) {
-    var s = String(md || '').replace(/\r\n/g, '\n');
-    if (!s.startsWith('---\n')) return { data: {}, body: s };
-    var end = s.indexOf('\n---\n', 4);
-    if (end === -1) return { data: {}, body: s };
-    var fmRaw = s.slice(4, end);
-    var body = s.slice(end + 5);
-    return { data: parseYaml(fmRaw) || {}, body: body.replace(/^\n+/, '') };
-  }
-
-  function normalizeProjectDataFromMd(parsed) {
-    var data = (parsed && parsed.data) ? (parsed.data || {}) : {};
-    var body = (parsed && parsed.body !== undefined && parsed.body !== null) ? String(parsed.body) : '';
-    data.body = body;
-    return data;
-  }
-
-  function parseYaml(text) {
-    var lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
-    var i = 0;
-
-    function indentOf(line) {
-      var m = line.match(/^(\s*)/);
-      return m ? m[1].length : 0;
-    }
-
-    function parseScalar(raw) {
-      var v = raw.trim();
-      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-        return v.slice(1, -1);
-      }
-      if (/^\d+$/.test(v)) return parseInt(v, 10);
-      if (v === 'true') return true;
-      if (v === 'false') return false;
-      if (v === 'null' || v === '~') return null;
-      return v;
-    }
-
-    function parseBlockScalar(baseIndent) {
-      var out = [];
-      while (i < lines.length) {
-        var line = lines[i];
-        if (!line.trim()) {
-          out.push('');
-          i++;
-          continue;
-        }
-        var ind = indentOf(line);
-        if (ind <= baseIndent) break;
-        out.push(line.slice(baseIndent + 2));
-        i++;
-      }
-      return out.join('\n').replace(/\n+$/g, '\n').trimEnd();
-    }
-
-    function parseList(baseIndent) {
-      var arr = [];
-      while (i < lines.length) {
-        var line = lines[i];
-        if (!line.trim()) {
-          i++;
-          continue;
-        }
-        var ind = indentOf(line);
-        if (ind < baseIndent) break;
-        var trimmed = line.trim();
-        if (!trimmed.startsWith('- ')) break;
-
-        var rest = trimmed.slice(2);
-        if (rest.includes(': ')) {
-          // object item (possibly multi-line)
-          var obj = {};
-          while (true) {
-            var kv = rest;
-            var colon = kv.indexOf(':');
-            var k = kv.slice(0, colon).trim();
-            var v = kv.slice(colon + 1).trim();
-            if (v === '') {
-              // nested list block (e.g. images:\n  - a\n  - b)
-              var peek = lines[i + 1] || '';
-              var peekInd = indentOf(peek);
-              if (peekInd > baseIndent && peek.trim().startsWith('- ')) {
-                // Move to the first list item line; parseList will advance i to the first non-list line.
-                i = i + 1;
-                obj[k] = parseList(peekInd);
-              } else {
-                obj[k] = '';
-                i++;
-              }
-            } else {
-              obj[k] = parseScalar(v);
-              i++;
-            }
-            if (i >= lines.length) break;
-            var next = lines[i];
-            if (!next.trim()) break;
-            var nextInd = indentOf(next);
-            if (nextInd <= baseIndent) break;
-            var nextTrim = next.trim();
-            if (nextTrim.startsWith('- ')) break;
-            if (!nextTrim.includes(':')) break;
-            rest = nextTrim;
-          }
-          arr.push(obj);
-          continue;
-        }
-
-        arr.push(parseScalar(rest));
-        i++;
-      }
-      return arr;
-    }
-
-    // Decide if this document is a list root or map root.
-    while (i < lines.length && !lines[i].trim()) i++;
-    if (i < lines.length && lines[i].trim().startsWith('- ')) {
-      return parseList(indentOf(lines[i]));
-    }
-
-    var obj = {};
-    while (i < lines.length) {
-      var line = lines[i];
-      if (!line.trim() || line.trim().startsWith('#')) {
-        i++;
-        continue;
-      }
-      var ind = indentOf(line);
-      if (ind !== 0) {
-        i++;
-        continue;
-      }
-      var idx = line.indexOf(':');
-      if (idx === -1) {
-        i++;
-        continue;
-      }
-      var key = line.slice(0, idx).trim();
-      var rest = line.slice(idx + 1).trim();
-      i++;
-
-      if (rest === '|') {
-        obj[key] = parseBlockScalar(ind);
-        continue;
-      }
-      if (rest === '') {
-        // list or nested map (we only need list for this project)
-        var nextLine = lines[i] || '';
-        if (nextLine.trim().startsWith('- ')) {
-          obj[key] = parseList(indentOf(nextLine));
-        } else {
-          obj[key] = null;
-        }
-        continue;
-      }
-      obj[key] = parseScalar(rest);
-    }
-    return obj;
+    return out.join('\n');
   }
 
   function getProjectSlugFromPath() {
@@ -493,129 +369,17 @@
     return null;
   }
 
-  function slugifyKey(input) {
-    return String(input || '')
-      .trim()
-      .toLowerCase()
-      .replace(/['’]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+  function getImmersiveSlugFromPath() {
+    var p = window.location.pathname || '';
+    var m = p.match(/\/immersive\/([^/]+)\/?$/);
+    if (m && m[1]) return String(m[1]);
+    return null;
   }
 
-  function canonicalMaterialKey(rawKey, label) {
-    var k = String(rawKey || '').toLowerCase();
-    var l = String(label || '').toLowerCase();
-    var s = (k + ' ' + l).trim();
-
-    if (/\bglass\b/.test(s)) return 'glass';
-    if (/\btextile\b|\bfabric\b|\bduvetyne\b|\bmolton\b|\btartan\b|\bthread\b|\byarn\b/.test(s)) return 'textile';
-    if (/\bnylon\b|\bsynthetic\b/.test(s)) return 'synthetic';
-    if (/\bmetal\b|\biron\b|\bhardware\b/.test(s)) return 'metal';
-    if (/\barchive\b|\barchival\b|\blegal\b|\bprotocols\b|\brecords\b|\bdocuments\b|\bbook\b/.test(s)) return 'archive';
-    if (/\bvideo\b|\bsound\b|\baudio\b|\bfilm\b|\ba-v\b|\ba\/v\b/.test(s)) return 'av';
-    if (/\bperformance\b|\bmovement\b|\bscore\b/.test(s)) return 'performance';
-    if (/\bdisplay\b|\bpackaging\b|\bpodium\b|\bshelving\b|\bmannequin\b|\bobjects?\b/.test(s)) return 'objects';
-    return rawKey;
-  }
-
-  function canonicalMaterialLabel(key) {
-    switch (key) {
-      case 'glass': return 'Glass';
-      case 'textile': return 'Textile';
-      case 'synthetic': return 'Synthetic';
-      case 'metal': return 'Metal';
-      case 'archive': return 'Archive';
-      case 'av': return 'A/V';
-      case 'performance': return 'Performance';
-      case 'objects': return 'Objects';
-      default: return String(key || '');
-    }
-  }
-
-  function materialIconSvg(key) {
-    var stroke = 'currentColor';
-    var sw = '1.5';
-    switch (key) {
-      case 'glass':
-        return (
-          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
-          '<path d="M6 3h12l-5 8v8l-2 2-2-2v-8L6 3z" />' +
-          '</svg>'
-        );
-      case 'metal':
-        return (
-          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
-          '<path d="M4 14l6-6 10 10-6 6L4 14z" />' +
-          '<path d="M9 9l6 6" />' +
-          '</svg>'
-        );
-      case 'textile':
-        return (
-          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
-          '<rect x="5" y="6" width="14" height="12" rx="1" />' +
-          '<path d="M8 6v12M12 6v12M16 6v12" />' +
-          '</svg>'
-        );
-      case 'synthetic':
-        return (
-          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
-          '<path d="M12 3c4 0 7 2.7 7 6.5 0 4.6-4.2 6.8-7 11.5-2.8-4.7-7-6.9-7-11.5C5 5.7 8 3 12 3z" />' +
-          '<path d="M9 10c1.2 1 2.2 1.5 3 1.5S13.8 11 15 10" />' +
-          '</svg>'
-        );
-      case 'archive':
-        return (
-          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
-          '<path d="M7 3h7l3 3v15H7V3z" />' +
-          '<path d="M14 3v4h4" />' +
-          '<path d="M9 11h6M9 15h6" />' +
-          '</svg>'
-        );
-      case 'av':
-        return (
-          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
-          '<path d="M4 10v4" />' +
-          '<path d="M7 8v8" />' +
-          '<path d="M10 6v12" />' +
-          '<path d="M14 8v8" />' +
-          '<path d="M17 10v4" />' +
-          '<path d="M20 11v2" />' +
-          '</svg>'
-        );
-      case 'performance':
-        return (
-          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
-          '<circle cx="12" cy="7" r="2" />' +
-          '<path d="M8 21l2-6 2-2 2 2 2 6" />' +
-          '<path d="M10 13l-2-2M14 13l2-2" />' +
-          '</svg>'
-        );
-      case 'objects':
-        return (
-          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
-          '<rect x="6" y="6" width="12" height="12" rx="1" />' +
-          '<path d="M9 10h6M9 14h6" />' +
-          '</svg>'
-        );
-      default:
-        return (
-          '<svg class="home-material-icon" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="' + sw + '">' +
-          '<circle cx="12" cy="12" r="8" />' +
-          '<path d="M8 12h8" />' +
-          '</svg>'
-        );
-    }
-  }
-
-  function renderMaterialIcons(keys) {
-    if (!Array.isArray(keys) || !keys.length) return '';
-    var html = '';
-    keys.forEach(function (k) {
-      if (!k) return;
-      html += materialIconSvg(String(k));
-    });
-    return html;
-  }
+  var slugifyKey = SDV.slugifyKey;
+  var canonicalMaterialKey = SDV.canonicalMaterialKey;
+  var canonicalMaterialLabel = SDV.canonicalMaterialLabel;
+  var renderMaterialIcons = SDV.renderMaterialIcons;
 
   function extractMaterialKeysForProject(data) {
     var sourceList = Array.isArray(data && data.home_materials)
@@ -637,34 +401,462 @@
     return keys;
   }
 
-  async function loadHomeMaterials() {
-    // Only run on home.
-    if (!document.querySelector('.view--home')) return;
+  function normalizeSanityProject(data) {
+    var d = data || {};
+    return {
+      slug: d.slug || '',
+      immersive_enabled: d.immersive_enabled,
+      home_materials: Array.isArray(d.home_materials) ? d.home_materials : [],
+      header_title: d.header_title || '',
+      body: d.body || '',
+      materials: Array.isArray(d.materials) ? d.materials : [],
+      links: Array.isArray(d.links) ? d.links : [],
+      gallery: Array.isArray(d.gallery) ? d.gallery : [],
+      falls: Array.isArray(d.falls) ? d.falls : [],
+      _updatedAt: d._updatedAt || '',
+    };
+  }
 
-    var prefix = rootPrefix();
-    var slugs = ['the-spontaneous-dance-falls', 'under-the-needles-eye', 'overlocked'];
+  function normalizeSanityInfo(data) {
+    var d = data || {};
+    return {
+      data: {
+        press: Array.isArray(d.press) ? d.press : [],
+        cv: d.cv || {},
+        _updatedAt: d._updatedAt || '',
+      },
+      body: d.body || '',
+    };
+  }
 
-    function fetchProject(slug) {
-      // Prefer in-memory draft data when preview is active.
-      if (SDV_PREVIEW.projectsBySlug && SDV_PREVIEW.projectsBySlug[slug]) {
-        return Promise.resolve({ slug: slug, data: SDV_PREVIEW.projectsBySlug[slug] || {} });
+  function normalizeSanityCaptions(data) {
+    var d = data || {};
+    return {
+      captions: Array.isArray(d.items) ? d.items : [],
+      _updatedAt: d._updatedAt || '',
+    };
+  }
+
+  function sanityAssetUrlFromRef(ref) {
+    var s = String(ref || '');
+    var imageMatch = s.match(/^image-([a-zA-Z0-9]+)-(\d+x\d+)-([a-z0-9]+)$/i);
+    if (imageMatch) {
+      return 'https://cdn.sanity.io/images/' + SANITY_PROJECT_ID + '/' + SANITY_DATASET + '/' + imageMatch[1] + '-' + imageMatch[2] + '.' + imageMatch[3];
+    }
+    var fileMatch = s.match(/^file-([a-zA-Z0-9]+)-([a-z0-9]+)$/i);
+    if (fileMatch) {
+      return 'https://cdn.sanity.io/files/' + SANITY_PROJECT_ID + '/' + SANITY_DATASET + '/' + fileMatch[1] + '.' + fileMatch[2];
+    }
+    return '';
+  }
+
+  function resolveImageSrc(src, prefix) {
+    if (src && typeof src === 'object' && src.asset && src.asset.url) {
+      return String(src.asset.url);
+    }
+    if (src && typeof src === 'object' && src.asset && src.asset._ref) {
+      var built = sanityAssetUrlFromRef(src.asset._ref);
+      if (built) return built;
+    }
+    if (src && typeof src === 'object' && src.url) {
+      return String(src.url);
+    }
+    if (src && typeof src === 'object' && src.image) {
+      src = src.image;
+      if (src && typeof src === 'object' && src.asset && src.asset._ref) {
+        var fromNested = sanityAssetUrlFromRef(src.asset._ref);
+        if (fromNested) return fromNested;
       }
-      var url = prefix + 'content/projects/' + slug + '.md';
-      return fetch(url).then(function (r) {
-        return r.ok ? r.text() : Promise.reject(new Error(r.status));
-      }).then(function (raw) {
-        return { slug: slug, data: normalizeProjectDataFromMd(parseFrontmatter(raw)) || {} };
+    }
+    var s = String(src || '');
+    var isAbs = /^https?:\/\//i.test(s);
+    if (!isAbs && s.startsWith('/')) s = s.slice(1);
+    if (!isAbs && s && !s.startsWith('images/')) s = 'images/' + s;
+    return isAbs ? s : (prefix + s);
+  }
+
+  function dispatchImmersiveReady(slug) {
+    window.dispatchEvent(new CustomEvent('sdv:immersive-ready', { detail: { slug: slug || '' } }));
+  }
+
+  function segmentType(seg) {
+    if (!seg) return '';
+    return String(seg._type || seg.type || '');
+  }
+
+  function buildLawLayoutHtml(paragraphs, heading, prefix) {
+    var h = '<div class="law-layout"><div class="law-text">';
+    if (heading) {
+      h += '<h2 class="law-heading">' + escapeHtml(heading) + '</h2>';
+    }
+    (paragraphs || []).forEach(function (para) {
+      h += '<p>';
+      var segs = Array.isArray(para && para.segments) ? para.segments : [];
+      segs.forEach(function (seg) {
+        var st = segmentType(seg);
+        if (st === 'lawTextSegment') {
+          var t = String(seg.text || '').replace(/\s+/g, ' ').trim();
+          if (t) h += escapeHtml(t);
+        } else if (st === 'lawFragmentSegment') {
+          var imgSrc = resolveImageSrc(seg.image, prefix);
+          var bt = String(seg.buttonText || '').replace(/\s+/g, ' ').trim();
+          h +=
+            '<button type="button" class="law-fragment" data-image="' +
+            escapeAttr(imgSrc) +
+            '">' +
+            escapeHtml(bt) +
+            '</button><span class="law-image-inline"></span>';
+        }
       });
+      h += '</p>';
+    });
+    h += '</div></div>';
+    return h;
+  }
+
+  /** Remove Stega / invisible chars Sanity may inject in preview fetches */
+  function stripStegaText(t) {
+    return String(t || '').replace(/[\u00ad\u200b-\u200f\u2028\u2029\ufeff]/g, '');
+  }
+
+  function renderLawBodyPortableText(blocks, prefix) {
+    if (!Array.isArray(blocks) || !blocks.length) return '';
+
+    function renderLawSpanChildren(block) {
+      var children = Array.isArray(block && block.children) ? block.children : [];
+      var markDefs = Array.isArray(block && block.markDefs) ? block.markDefs : [];
+      var markDefMap = {};
+      markDefs.forEach(function (d) {
+        if (d && d._key) markDefMap[d._key] = d;
+      });
+
+      return children
+        .map(function (child) {
+          if (!child || child._type !== 'span') return '';
+          var rawText = stripStegaText(child.text || '');
+          var marks = Array.isArray(child.marks) ? child.marks.slice() : [];
+
+          var lawMarkKey = null;
+          for (var mi = 0; mi < marks.length; mi++) {
+            var mk = marks[mi];
+            var def = markDefMap[mk];
+            if (def && def._type === 'lawFragment') {
+              lawMarkKey = mk;
+              break;
+            }
+          }
+
+          if (lawMarkKey) {
+            var lfDef = markDefMap[lawMarkKey];
+            var imgSrc = resolveImageSrc(lfDef && lfDef.image, prefix);
+            var inner = escapeHtml(rawText);
+            marks.forEach(function (mark) {
+              if (mark === lawMarkKey) return;
+              if (mark === 'strong') inner = '<strong>' + inner + '</strong>';
+              else if (mark === 'em') inner = '<em>' + inner + '</em>';
+              else if (mark === 'strike-through') inner = '<del>' + inner + '</del>';
+              else if (markDefMap[mark] && markDefMap[mark]._type === 'link' && markDefMap[mark].href) {
+                inner =
+                  '<a href="' +
+                  escapeAttr(markDefMap[mark].href) +
+                  '" target="_blank" rel="noopener">' +
+                  inner +
+                  '</a>';
+              }
+            });
+            return (
+              '<button type="button" class="law-fragment" data-image="' +
+              escapeAttr(imgSrc) +
+              '">' +
+              inner +
+              '</button><span class="law-image-inline"></span>'
+            );
+          }
+
+          var text = escapeHtml(rawText);
+          marks.forEach(function (mark) {
+            if (mark === 'strong') text = '<strong>' + text + '</strong>';
+            else if (mark === 'em') text = '<em>' + text + '</em>';
+            else if (mark === 'strike-through') text = '<del>' + text + '</del>';
+            else if (markDefMap[mark] && markDefMap[mark]._type === 'link' && markDefMap[mark].href) {
+              text =
+                '<a href="' +
+                escapeAttr(markDefMap[mark].href) +
+                '" target="_blank" rel="noopener">' +
+                text +
+                '</a>';
+            }
+          });
+          return text;
+        })
+        .join('');
+    }
+
+    var out = [];
+    var listType = null;
+    var listItems = [];
+
+    function flushLawList() {
+      if (!listType || !listItems.length) return;
+      var tag = listType === 'number' ? 'ol' : 'ul';
+      out.push('<' + tag + '>' + listItems.map(function (li) { return '<li>' + li + '</li>'; }).join('') + '</' + tag + '>');
+      listType = null;
+      listItems = [];
+    }
+
+    blocks.forEach(function (block) {
+      if (!block || block._type !== 'block') return;
+      var itemText = renderLawSpanChildren(block);
+      if (block.listItem) {
+        var current = block.listItem === 'number' ? 'number' : 'bullet';
+        if (listType && listType !== current) flushLawList();
+        listType = current;
+        listItems.push(itemText);
+        return;
+      }
+
+      flushLawList();
+      var style = block.style || 'normal';
+      if (style === 'h2') out.push('<h2>' + itemText + '</h2>');
+      else if (style === 'h3') out.push('<h3>' + itemText + '</h3>');
+      else if (style === 'blockquote') out.push('<blockquote><p>' + itemText + '</p></blockquote>');
+      else out.push('<p>' + itemText + '</p>');
+    });
+
+    flushLawList();
+    return out.join('\n');
+  }
+
+  function buildLawDocumentHtml(heading, bodyBlocks, prefix) {
+    var inner = renderLawBodyPortableText(bodyBlocks, prefix);
+    var h = '<div class="law-layout"><div class="law-text">';
+    if (heading) {
+      h += '<h2 class="law-heading">' + escapeHtml(stripStegaText(heading)) + '</h2>';
+    }
+    h += inner;
+    h += '</div></div>';
+    return h;
+  }
+
+  var HOME_PAGE_DOC_ID = 'homePageConfig';
+  var IMMERSIVE_LAW_DOC_ID = 'immersiveLawDance';
+  var IMMERSIVE_NEEDLE_DOC_ID = 'immersiveNeedleSlider';
+
+  var HOME_PAGE_GROQ =
+    '*[_id == "' +
+    HOME_PAGE_DOC_ID +
+    '"][0]{\n' +
+    '  entries[]{\n' +
+    '    navLabel,\n' +
+    '    splashImage,\n' +
+    '    "proj": project->{\n' +
+    '      slug, home_materials, immersive_enabled, header_title,\n' +
+    '      body, materials, links, falls, gallery, _updatedAt\n' +
+    '    }\n' +
+    '  }\n' +
+    '}';
+
+  var PROJECT_FALLBACK_GROQ =
+    '*[_type == "project"]{\n' +
+    '  slug, home_materials, immersive_enabled, header_title,\n' +
+    '  body, materials, links, falls, gallery, _updatedAt\n' +
+    '}';
+
+  var FALLBACK_SLUG_ORDER = ['the-spontaneous-dance-falls', 'under-the-needles-eye', 'overlocked'];
+
+  function sortProjectsBySlugOrder(list, orderArr) {
+    var idx = {};
+    (orderArr || []).forEach(function (s, i) {
+      idx[s] = i;
+    });
+    return (list || []).slice().sort(function (a, b) {
+      var ia = idx[a.slug] != null ? idx[a.slug] : 999;
+      var ib = idx[b.slug] != null ? idx[b.slug] : 999;
+      if (ia !== ib) return ia - ib;
+      return String(a.slug).localeCompare(String(b.slug));
+    });
+  }
+
+  async function fetchOrderedProjects() {
+    if (SDV_PREVIEW.homeProjects && Array.isArray(SDV_PREVIEW.homeProjects)) {
+      return SDV_PREVIEW.homeProjects;
+    }
+    var homeDoc = await sanityFetch(HOME_PAGE_GROQ);
+    var entries = homeDoc && Array.isArray(homeDoc.entries) ? homeDoc.entries : [];
+    var merged = [];
+    for (var ei = 0; ei < entries.length; ei++) {
+      var e = entries[ei] || {};
+      var p = e.proj;
+      if (!p || !p.slug) continue;
+      var base = normalizeSanityProject(p);
+      base._homeNavLabelOverride = e.navLabel && String(e.navLabel).trim() ? String(e.navLabel).trim() : '';
+      base._homeSplashOverride = e.splashImage || null;
+      merged.push(base);
+    }
+    if (merged.length) {
+      SDV_PREVIEW.homeProjects = merged;
+      return merged;
+    }
+    var list = await sanityFetch(PROJECT_FALLBACK_GROQ);
+    var arr = Array.isArray(list) ? list.map(function (d) { return normalizeSanityProject(d || {}); }) : [];
+    var sorted = sortProjectsBySlugOrder(arr, FALLBACK_SLUG_ORDER);
+    SDV_PREVIEW.homeProjects = sorted;
+    return sorted;
+  }
+
+  async function loadHome() {
+    var nav = document.querySelector('.home-projects');
+    if (!nav) return;
+
+    try {
+      var projects = await fetchOrderedProjects();
+      window.SDV_HOME_PROJECTS = projects.map(function (p) {
+        var prefix = rootPrefix();
+        var splash = p._homeSplashOverride ? resolveImageSrc(p._homeSplashOverride, prefix) : '';
+        if (!splash && Array.isArray(p.gallery) && p.gallery[0]) {
+          splash = resolveImageSrc(p.gallery[0], prefix);
+        }
+        var label =
+          (p._homeNavLabelOverride && String(p._homeNavLabelOverride).trim()) ||
+          p.header_title ||
+          p.slug;
+        return { slug: p.slug, label: label, splashUrl: splash };
+      });
+
+      var html = '';
+      window.SDV_HOME_PROJECTS.forEach(function (row) {
+        html +=
+          '<button type="button" class="home-project" data-slug="' +
+          escapeAttr(row.slug) +
+          '">' +
+          escapeHtml(row.label) +
+          '</button>';
+      });
+      nav.innerHTML = html;
+      window.dispatchEvent(new CustomEvent('sdv:home'));
+    } catch (e) {
+      // Non-fatal: keep empty nav if Sanity fails.
+    }
+  }
+
+  async function loadImmersiveContent() {
+    var slug = getImmersiveSlugFromPath();
+    var page = document.querySelector('.immersive-page');
+    if (!page || !slug) return;
+
+    page.setAttribute('data-slug', slug);
+
+    if (slug === 'overlocked') {
+      dispatchImmersiveReady(slug);
+      return;
+    }
+
+    if (slug !== 'the-spontaneous-dance-falls' && slug !== 'under-the-needles-eye') {
+      dispatchImmersiveReady(slug);
+      return;
     }
 
     try {
+      var prefix = rootPrefix();
+
+      if (slug === 'the-spontaneous-dance-falls') {
+        var lawDoc = await sanityFetch(
+          '*[_id in [$publishedId, $draftId]] | order(_updatedAt desc)[0]{heading, body}',
+          {
+            publishedId: IMMERSIVE_LAW_DOC_ID,
+            draftId: 'drafts.' + IMMERSIVE_LAW_DOC_ID,
+          },
+        );
+        var lawHtml = '';
+        if (lawDoc && Array.isArray(lawDoc.body) && lawDoc.body.length) {
+          lawHtml = buildLawDocumentHtml(lawDoc.heading || '', lawDoc.body, prefix);
+        } else {
+          var legacyLaw = await sanityFetch(
+            '*[_type == "project" && slug == $slug][0]{immersive_law_heading, immersive_law_paragraphs}',
+            { slug: slug },
+          );
+          var ld = legacyLaw || {};
+          lawHtml = buildLawLayoutHtml(
+            Array.isArray(ld.immersive_law_paragraphs) ? ld.immersive_law_paragraphs : [],
+            ld.immersive_law_heading || '',
+            prefix,
+          );
+        }
+        var mainInner = document.getElementById('immersive-inner');
+        var insetInner = document.getElementById('immersive-inner-inset');
+        if (mainInner) mainInner.innerHTML = lawHtml;
+        if (insetInner) insetInner.innerHTML = lawHtml;
+      }
+
+      if (slug === 'under-the-needles-eye') {
+        var needleDoc = await sanityFetch(
+          '*[_id in [$publishedId, $draftId]] | order(_updatedAt desc)[0]{slides}',
+          {
+            publishedId: IMMERSIVE_NEEDLE_DOC_ID,
+            draftId: 'drafts.' + IMMERSIVE_NEEDLE_DOC_ID,
+          },
+        );
+        var slideRows = needleDoc && Array.isArray(needleDoc.slides) ? needleDoc.slides : [];
+        if (!slideRows.length) {
+          var legacyNeedle = await sanityFetch(
+            '*[_type == "project" && slug == $slug][0]{immersive_slider_slides}',
+            { slug: slug },
+          );
+          slideRows =
+            legacyNeedle && Array.isArray(legacyNeedle.immersive_slider_slides)
+              ? legacyNeedle.immersive_slider_slides
+              : [];
+        }
+        var slides = [];
+        slideRows.forEach(function (slide) {
+          if (!slide) return;
+          var src = resolveImageSrc(slide.image, prefix);
+          var cap = Array.isArray(slide.caption) ? renderPortableText(slide.caption) : '';
+          slides.push({ src: src, captionHtml: cap });
+        });
+        window.SDV_IMMERSIVE_SLIDER = { slides: slides };
+      } else {
+        try {
+          delete window.SDV_IMMERSIVE_SLIDER;
+        } catch (e) {
+          window.SDV_IMMERSIVE_SLIDER = undefined;
+        }
+      }
+    } catch (e) {
+      console.warn('[sdv] Immersive content failed to load:', e && e.message ? e.message : e);
+    }
+
+    dispatchImmersiveReady(slug);
+  }
+
+  async function loadHomeMaterials() {
+    if (!document.querySelector('.view--home')) return;
+
+    try {
+      var projects = await fetchOrderedProjects();
+      var slugs = projects.map(function (p) { return p.slug; }).filter(Boolean);
+
+      function fetchProject(slug) {
+        var hit = projects.find(function (p) { return p.slug === slug; });
+        if (hit) {
+          return Promise.resolve({ slug: slug, data: hit });
+        }
+        return sanityFetch(
+          '*[_type=="project" && slug == $slug][0]{' +
+          'slug, home_materials, immersive_enabled, header_title, body, materials, links, falls, gallery, _updatedAt' +
+          '}',
+          { slug: slug },
+        ).then(function (doc) {
+          return { slug: slug, data: normalizeSanityProject(doc || {}) };
+        });
+      }
+
       var results = await Promise.all(slugs.map(fetchProject));
       var projectMap = {};
       var allLabelsByKey = {};
 
       results.forEach(function (r) {
         var d = r.data || {};
-        // Allow home-specific curation.
         var sourceList = Array.isArray(d.home_materials) ? d.home_materials : (Array.isArray(d.materials) ? d.materials : []);
         var mats = [];
         var seen = {};
@@ -695,7 +887,7 @@
       window.SDV_ALL_MATERIALS = all;
       window.dispatchEvent(new Event('sdv:materials'));
     } catch (e) {
-      // Non-fatal: home can render without materials UI.
+      // Non-fatal.
     }
   }
 
@@ -703,34 +895,14 @@
     if (!host) return;
     host.querySelectorAll('img').forEach(function (el) { el.remove(); });
     (items || []).forEach(function (src) {
-      var s = String(src || '');
-      var isAbs = /^https?:\/\//i.test(s);
-      if (!isAbs && s.startsWith('/')) s = s.slice(1);
-      // Content may store paths relative to the `images/` dir (e.g. `project-overviews/...`).
-      // Normalize to `images/<path>` for the runtime site which expects assets under `images/`.
-      if (!isAbs && s && !s.startsWith('images/')) s = 'images/' + s;
       var img = document.createElement('img');
-      img.src = isAbs ? s : (prefix + s);
+      img.src = resolveImageSrc(src, prefix);
       img.alt = '';
       host.appendChild(img);
     });
   }
 
-  function resolveImageSrc(src, prefix) {
-    if (src && typeof src === 'object') {
-      // Decap CMS list field uses objects like { image: "path" }
-      src = src.image;
-    }
-    var s = String(src || '');
-    var isAbs = /^https?:\/\//i.test(s);
-    if (!isAbs && s.startsWith('/')) s = s.slice(1);
-    // Content may store paths relative to the `images/` dir (e.g. `project-overviews/...`).
-    // Normalize to `images/<path>` for the runtime site which expects assets under `images/`.
-    if (!isAbs && s && !s.startsWith('images/')) s = 'images/' + s;
-    return isAbs ? s : (prefix + s);
-  }
-
-  function buildFallTimeline(timelineHost, panelsHost, metaHost, falls, prefix, scrollContainer) {
+  function buildFallTimeline(timelineHost, panelsHost, metaHost, falls, prefix) {
     if (!timelineHost || !panelsHost) return;
     timelineHost.innerHTML = '';
     panelsHost.innerHTML = '';
@@ -794,7 +966,6 @@
       if (!panel) return;
       isProgrammaticScroll = true;
       panelsHost.scrollTo({ left: panel.offsetLeft, behavior: behavior || 'smooth' });
-      // Release the guard after scroll settles.
       setTimeout(function () { isProgrammaticScroll = false; }, behavior === 'auto' ? 0 : 450);
     }
 
@@ -803,12 +974,8 @@
       selected = clampIndex(index);
       setTimelineCurrent(selected);
       setMeta(selected);
-
-      // Always start at the top of the selected FALL.
       var sc = panelScrollElAt(selected);
       if (sc && prev !== selected) sc.scrollTop = 0;
-
-      // Slide to the selected panel (native scroll-snap handles the animation).
       var immediate = options && options.immediate;
       scrollToPanel(selected, immediate ? 'auto' : 'smooth');
     }
@@ -831,7 +998,6 @@
       btn.textContent = label;
       if (type || details) {
         btn.setAttribute('aria-label', type ? (label + ': ' + type) : label);
-        // Keep details available (native tooltip) without being the primary UI.
         if (details) btn.title = details;
       }
 
@@ -842,7 +1008,6 @@
       timelineHost.appendChild(btn);
     });
 
-    // Sync timeline/meta when user swipes/scrolls horizontally.
     panelsHost.addEventListener('scroll', function () {
       if (isProgrammaticScroll) return;
       if (rafScrollSync) cancelAnimationFrame(rafScrollSync);
@@ -858,24 +1023,11 @@
       });
     }, { passive: true });
 
-    // Keep horizontal positioning correct on resize.
     window.addEventListener('resize', function () {
       scrollToPanel(selected, 'auto');
     });
 
     setActive(0, { immediate: true });
-
-    // If images load after layout, update height so the scroll range stays correct.
-    panels.forEach(function (panel, idx) {
-      panel.querySelectorAll('img').forEach(function (img) {
-        img.addEventListener('load', function () {
-          // No-op: layout is handled by per-panel vertical scrollers.
-        });
-        if (img.complete) {
-          // No-op: layout is handled by per-panel vertical scrollers.
-        }
-      });
-    });
   }
 
   async function loadProject() {
@@ -892,20 +1044,24 @@
       ? (SDV_PREVIEW.projectsBySlug[slug] || {})
       : null;
     if (!data) {
-      var url = prefix + 'content/projects/' + slug + '.md';
-      var raw = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
-      data = normalizeProjectDataFromMd(parseFrontmatter(raw)) || {};
+      var doc = await sanityFetch(
+        '*[_type=="project" && slug == $slug][0]{' +
+        'slug, home_materials, immersive_enabled, header_title, body, materials, links, falls, gallery, _updatedAt' +
+        '}',
+        { slug: slug },
+      );
+      data = normalizeSanityProject(doc || {});
+      SDV_PREVIEW.projectsBySlug[slug] = data;
     }
 
-    if (data.header_title || data.title) {
-      title.textContent = String(data.header_title || data.title);
+    if (data.header_title) {
+      title.textContent = String(data.header_title);
     }
-    if (data.page_title || data.title) {
-      document.title = String(data.page_title || data.title);
-    }
-    var overviewMd = (data.body !== undefined && data.body !== null) ? String(data.body) : (data.overview_markdown ? String(data.overview_markdown) : '');
-    textHost.innerHTML = overviewMd
-      ? renderMarkdown(overviewMd)
+    document.title = String(data.header_title || document.title);
+
+    var bodyValue = data.body;
+    textHost.innerHTML = Array.isArray(bodyValue) && bodyValue.length
+      ? renderPortableText(bodyValue)
       : '<p>Content not found.</p>';
 
     var materialsHost = document.getElementById('project-materials');
@@ -913,10 +1069,8 @@
       var matsHtml = '';
       if (Array.isArray(data.materials) && data.materials.length) {
         matsHtml = '<h3>Materials</h3><ul>' + data.materials.map(function (m) {
-          return '<li>' + renderInlineMarkdown(String(m || '')) + '</li>';
+          return '<li>' + escapeHtml(String(m || '')) + '</li>';
         }).join('') + '</ul>';
-      } else if (data.materials_markdown) {
-        matsHtml = renderMarkdown(String(data.materials_markdown));
       }
       var matKeys = extractMaterialKeysForProject(data);
       var icons = renderMaterialIcons(matKeys);
@@ -929,7 +1083,6 @@
       linksHost.innerHTML = renderProjectLinksHtml(data.links, prefix);
     }
 
-    // Optional toggle to hide overview → immersive navigation.
     var zoomWrap = document.querySelector('.project-zoom-wrap');
     if (zoomWrap) {
       var on = (data.immersive_enabled === undefined) ? true : !!data.immersive_enabled;
@@ -944,18 +1097,12 @@
 
       if (timelineHost && panelsHost && Array.isArray(data.falls) && data.falls.length) {
         galleryHost.classList.add('has-falls');
-        buildFallTimeline(timelineHost, panelsHost, metaHost, data.falls, prefix, galleryHost);
+        buildFallTimeline(timelineHost, panelsHost, metaHost, data.falls, prefix);
       } else {
         galleryHost.classList.remove('has-falls');
-        // Back-compat for projects that use a single gallery list.
         galleryHost.querySelectorAll('.project-timeline, #project-timeline, #project-gallery-panels').forEach(function (el) {
           if (el && el.parentNode) el.parentNode.removeChild(el);
         });
-        if (data.gallery_heading) {
-          var h = document.createElement('h2');
-          h.textContent = String(data.gallery_heading);
-          galleryHost.prepend(h);
-        }
         buildGallery(galleryHost, data.gallery, prefix);
       }
     }
@@ -966,6 +1113,18 @@
     if (/^https?:\/\//i.test(s)) return s;
     if (s.startsWith('/')) s = s.slice(1);
     return prefix + s;
+  }
+
+  function resolveFileHref(fileField, prefix) {
+    if (!fileField) return '';
+    if (typeof fileField === 'string') return safeHref(fileField, prefix);
+    if (fileField.asset && fileField.asset.url) return String(fileField.asset.url);
+    if (fileField.asset && fileField.asset._ref) {
+      var built = sanityAssetUrlFromRef(fileField.asset._ref);
+      if (built) return built;
+    }
+    if (fileField.url) return String(fileField.url);
+    return '';
   }
 
   function renderProjectLinksHtml(links, prefix) {
@@ -998,22 +1157,22 @@
     if (!host && !bioHost) return;
     var prefix = rootPrefix();
     var data = null;
-    var bioMd = '';
+    var bioBody = '';
 
     if (SDV_PREVIEW.info) {
       data = SDV_PREVIEW.info.data || {};
-      bioMd = SDV_PREVIEW.info.body || '';
+      bioBody = SDV_PREVIEW.info.body || '';
     } else {
-      var url = prefix + 'content/info.md';
-      var raw = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
-      var parsed = parseFrontmatter(raw);
-      data = parsed.data || {};
-      bioMd = parsed.body || '';
+      var infoDoc = await sanityFetch('*[_type=="info"][0]{body, press, cv, _updatedAt}');
+      var normalized = normalizeSanityInfo(infoDoc || {});
+      data = normalized.data;
+      bioBody = normalized.body;
+      SDV_PREVIEW.info = normalized;
     }
 
     if (bioHost) {
-      bioHost.innerHTML = bioMd
-        ? renderMarkdown(String(bioMd))
+      bioHost.innerHTML = Array.isArray(bioBody) && bioBody.length
+        ? renderPortableText(bioBody)
         : '<p>Bio not found.</p>';
     }
 
@@ -1023,26 +1182,28 @@
       html += '<p><strong>Press</strong></p>';
       data.press.forEach(function (item) {
         if (!item) return;
-        var title = item.title ? escapeHtml(String(item.title)) : 'Link';
+        var t = item.title ? escapeHtml(String(item.title)) : 'Link';
         var href = item.url ? escapeHtml(String(item.url)) : '';
         var desc = item.description ? escapeHtml(String(item.description)) : '';
         if (href) {
-          html += '<p><strong><a href="' + href + '" target="_blank" rel="noopener">' + title + ':</a></strong> ' + desc + '</p>';
+          html += '<p><strong><a href="' + href + '" target="_blank" rel="noopener">' + t + ':</a></strong> ' + desc + '</p>';
         } else {
-          html += '<p><strong>' + title + ':</strong> ' + desc + '</p>';
+          html += '<p><strong>' + t + ':</strong> ' + desc + '</p>';
         }
       });
     }
 
     if (data.cv && (data.cv.file || data.cv.url)) {
       html += '<p><strong>CV</strong></p>';
-      var label = data.cv.label ? escapeHtml(String(data.cv.label)) : 'Download CV';
-      var href2 = data.cv.url ? String(data.cv.url) : String(data.cv.file || '');
+      var cvLabel = data.cv.label ? escapeHtml(String(data.cv.label)) : 'Download CV';
+      var href2 = data.cv.url ? String(data.cv.url) : resolveFileHref(data.cv.file, prefix);
       var fullHref = escapeHtml(safeHref(href2, prefix));
-      html += '<p><a href="' + fullHref + '" target="_blank" rel="noopener">' + label + '</a></p>';
+      html += '<p><a href="' + fullHref + '" target="_blank" rel="noopener">' + cvLabel + '</a></p>';
     }
 
-    host.innerHTML = html || '<p>Links failed to load.</p>';
+    if (host) {
+      host.innerHTML = html || '<p>Links failed to load.</p>';
+    }
   }
 
   async function loadCaptions() {
@@ -1053,21 +1214,22 @@
       if (SDV_PREVIEW.captions && Array.isArray(SDV_PREVIEW.captions.captions)) {
         list = SDV_PREVIEW.captions.captions;
       } else {
-        var url = rootPrefix() + 'content/captions.yml';
-        var yml = await fetch(url).then(function (r) { return r.ok ? r.text() : Promise.reject(new Error(r.status)); });
-        var data = parseYaml(yml);
-        list = (data && Array.isArray(data.captions)) ? data.captions : null;
+        var captionsDoc = await sanityFetch('*[_type=="captions"][0]{items, _updatedAt}');
+        var normalizedCaptions = normalizeSanityCaptions(captionsDoc || {});
+        list = normalizedCaptions.captions;
+        SDV_PREVIEW.captions = normalizedCaptions;
       }
       if (list) {
         window.SDV_CAPTIONS = list;
         window.dispatchEvent(new Event('sdv:captions'));
       }
     } catch (e) {
-      // If captions fail to load, app.js falls back to its internal CAPTIONS.
+      // app.js uses CAPTIONS fallback when window.SDV_CAPTIONS is missing.
     }
   }
 
   document.addEventListener('DOMContentLoaded', function () {
+    setupVisualEditingBridge();
     preservePreviewLinks();
     loadInfoLinks().catch(function () {
       var host = document.getElementById('info-links');
@@ -1081,8 +1243,16 @@
       var galleryHost = document.getElementById('project-gallery');
       if (galleryHost) galleryHost.querySelectorAll('img').forEach(function (el) { el.remove(); });
     });
+    loadHome().catch(function () { });
     loadHomeMaterials().catch(function () { });
     loadCaptions().catch(function () { });
+    loadImmersiveContent().catch(function () { });
+
+    if (isPreviewEnabled()) {
+      window.addEventListener('popstate', function () {
+        resetPreviewSanityClient();
+        refetchAllSanityDrivenContent().catch(function () { });
+      });
+    }
   });
 })();
-

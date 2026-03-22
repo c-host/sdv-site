@@ -1,0 +1,22 @@
+{
+  "projects": [
+    {
+      "slug": "the-spontaneous-dance-falls",
+      "home_order": 1,
+      "home_nav_label": "The Spontaneous Dance Falls",
+      "splash": "images/home/fall.jpg"
+    },
+    {
+      "slug": "under-the-needles-eye",
+      "home_order": 2,
+      "home_nav_label": "Under the Needle's Eye",
+      "splash": "images/home/needle.jpg"
+    },
+    {
+      "slug": "overlocked",
+      "home_order": 3,
+      "home_nav_label": "overlocked",
+      "splash": "images/home/overlocked.jpg"
+    }
+  ]
+}
