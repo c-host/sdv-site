@@ -10,6 +10,7 @@ import {
 import {HOME_PAGE_DOC_ID} from './schemaTypes/homePageType'
 import {IMMERSIVE_LAW_DOC_ID} from './schemaTypes/immersiveLawType'
 import {IMMERSIVE_NEEDLE_DOC_ID} from './schemaTypes/immersiveNeedleType'
+import {SITE_TYPOGRAPHY_DOC_ID} from './schemaTypes/typographyTypes'
 import {schemaTypes} from './schemaTypes'
 import {structure} from './structure'
 
@@ -18,8 +19,8 @@ function publishedId(id: string | undefined) {
   return id?.replace(/^drafts\./, '') || ''
 }
 
-const ALLOWED_NEW_TEMPLATES = new Set(['sanity.imageAsset', 'sanity.fileAsset'])
-/** Netlify CLI often serves on :8888; include common dev ports so Presentation can connect. */
+const ALLOWED_NEW_TEMPLATES = new Set(['sanity.imageAsset', 'sanity.fileAsset', 'fontUpload'])
+/** Local static servers and GitHub Pages previews; add your real deploy origin via env. */
 const FALLBACK_ORIGINS = [
   'http://127.0.0.1:3000',
   'http://localhost:3000',
@@ -146,6 +147,20 @@ const presentationResolve: PresentationPluginOptions['resolve'] = {
         locations:
           publishedId(doc?._id) === IMMERSIVE_NEEDLE_DOC_ID
             ? [{title: 'Needle immersive', href: '/immersive/under-the-needles-eye/'}]
+            : [],
+      }),
+    }),
+    siteTypography: defineLocations({
+      select: {_id: '_id'},
+      resolve: (doc) => ({
+        locations:
+          publishedId(doc?._id) === SITE_TYPOGRAPHY_DOC_ID
+            ? [
+                {title: 'Home', href: '/'},
+                {title: 'Info', href: '/info/'},
+                {title: 'Dance Falls immersive', href: '/immersive/the-spontaneous-dance-falls/'},
+                {title: 'Needle immersive', href: '/immersive/under-the-needles-eye/'},
+              ]
             : [],
       }),
     }),

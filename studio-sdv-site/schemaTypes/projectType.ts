@@ -42,6 +42,18 @@ export const projectType = defineType({
       validation: (Rule) => Rule.required(),
     }),
     defineField({
+      name: 'homeLineColor',
+      title: 'Home line color',
+      description:
+        'Hex color for the home crosshair and center frame when this project is selected (e.g. #7e7777). Used when no color is set on the home page entry.',
+      type: 'string',
+      validation: (Rule) =>
+        Rule.custom((val) => {
+          if (val == null || !String(val).trim()) return true
+          return /^#[0-9A-Fa-f]{6}$/.test(String(val).trim()) ? true : 'Use #RRGGBB'
+        }),
+    }),
+    defineField({
       name: 'body',
       title: 'Overview',
       description:

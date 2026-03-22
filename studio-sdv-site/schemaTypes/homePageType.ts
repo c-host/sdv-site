@@ -38,6 +38,18 @@ export const homePageType = defineType({
               type: 'image',
               options: {hotspot: false},
             }),
+            defineField({
+              name: 'homeLineColor',
+              title: 'Home line color',
+              description:
+                'Hex color for the home crosshair and center frame when this project is selected (e.g. #7e7777). Overrides the project default when set.',
+              type: 'string',
+              validation: (Rule) =>
+                Rule.custom((val) => {
+                  if (val == null || !String(val).trim()) return true
+                  return /^#[0-9A-Fa-f]{6}$/.test(String(val).trim()) ? true : 'Use #RRGGBB'
+                }),
+            }),
           ],
           preview: {
             select: {label: 'navLabel', media: 'splashImage'},

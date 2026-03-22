@@ -10,6 +10,13 @@ const CONTENT_DIR = path.join(ROOT, 'content')
 const PROJECTS_DIR = path.join(CONTENT_DIR, 'projects')
 
 const HOME_PAGE_DOC_ID = 'homePageConfig'
+/** Distinct home crosshair / frame colors per project (import seeds). */
+/** Matches context/*.md line color notes. */
+const HOME_LINE_BY_SLUG = {
+  'the-spontaneous-dance-falls': '#3f3739',
+  'under-the-needles-eye': '#713b38',
+  overlocked: '#1851a3',
+}
 const IMMERSIVE_LAW_DOC_ID = 'immersiveLawDance'
 const IMMERSIVE_NEEDLE_DOC_ID = 'immersiveNeedleSlider'
 
@@ -538,6 +545,8 @@ async function importHomePage() {
       navLabel: row.home_nav_label || '',
     }
     if (splashField) entry.splashImage = splashField
+    const entryLine = HOME_LINE_BY_SLUG[row.slug]
+    if (entryLine) entry.homeLineColor = entryLine
     entries.push(entry)
   }
   await client.createOrReplace({

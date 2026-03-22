@@ -2,6 +2,7 @@ import type {StructureResolver} from 'sanity/structure'
 import {HOME_PAGE_DOC_ID} from './schemaTypes/homePageType'
 import {IMMERSIVE_LAW_DOC_ID} from './schemaTypes/immersiveLawType'
 import {IMMERSIVE_NEEDLE_DOC_ID} from './schemaTypes/immersiveNeedleType'
+import {SITE_TYPOGRAPHY_DOC_ID} from './schemaTypes/typographyTypes'
 
 const INFO_DOC_ID = 'infoPage'
 const CAPTIONS_DOC_ID = 'captionsConfig'
@@ -36,6 +37,11 @@ export const structure: StructureResolver = (S) =>
         .title('Captions')
         .id('captions-item')
         .child(S.document().schemaType('captions').documentId(CAPTIONS_DOC_ID)),
+      S.listItem()
+        .title('Typography')
+        .id('typography-item')
+        .child(S.document().schemaType('siteTypography').documentId(SITE_TYPOGRAPHY_DOC_ID)),
+      S.documentTypeListItem('fontUpload').title('Font files'),
       S.listItem()
         .title('Projects')
         .id('projects-item')
