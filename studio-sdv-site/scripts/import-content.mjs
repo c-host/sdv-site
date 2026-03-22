@@ -437,6 +437,20 @@ async function importProject(slug) {
     })
   }
 
+  if (!fallItems.length && galleryImages.filter(Boolean).length) {
+    galleryImages.forEach((imgField, i) => {
+      if (!imgField) return
+      fallItems.push({
+        _type: 'fall',
+        _key: key(),
+        label: `Panel ${i + 1}`,
+        type: '',
+        details: '',
+        images: [imgField],
+      })
+    })
+  }
+
   const projectId = `project-${slug}`
   const doc = {
     _id: projectId,
@@ -449,7 +463,6 @@ async function importProject(slug) {
     materials: Array.isArray(d.materials) ? d.materials : [],
     links: Array.isArray(d.links) ? d.links : [],
     falls: fallItems,
-    gallery: galleryImages.filter(Boolean),
   }
   doc.links = Array.isArray(d.links)
     ? d.links.map((item) => ({

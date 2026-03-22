@@ -566,7 +566,7 @@ img {
 .info-pane h2 {
   flex-shrink: 0;
   margin: 0 0 0 0.75rem;
-  padding: var(--gap);
+  padding: 0 1rem 1rem 1rem;
   font-size: 1.25rem;
   font-weight: 600;
   font-family: var(--font-strong), var(--font);
@@ -1539,6 +1539,14 @@ img {
   flex-direction: column;
   gap: var(--gap);
   padding-bottom: 1.25em;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.project-gallery-panel-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .project-timeline__item {

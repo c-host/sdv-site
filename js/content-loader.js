@@ -458,6 +458,34 @@
     };
   }
 
+  /** Prefer `falls`; legacy CDN docs may still have `gallery` only — one synthetic panel per image. */
+  function effectiveTimelinePanels(data) {
+    var d = data || {};
+    var falls = Array.isArray(d.falls) ? d.falls : [];
+    if (falls.length) return falls;
+    var gallery = Array.isArray(d.gallery) ? d.gallery : [];
+    if (!gallery.length) return [];
+    return gallery.map(function (img, i) {
+      return {
+        label: 'Panel ' + (i + 1),
+        type: '',
+        details: '',
+        images: [img],
+      };
+    });
+  }
+
+  function firstProjectSplashImage(data, prefix) {
+    var d = data || {};
+    if (Array.isArray(d.gallery) && d.gallery[0]) {
+      return resolveImageSrc(d.gallery[0], prefix);
+    }
+    var falls = Array.isArray(d.falls) ? d.falls : [];
+    var first = falls[0];
+    if (!first || !Array.isArray(first.images) || !first.images[0]) return '';
+    return resolveImageSrc(first.images[0], prefix);
+  }
+
   function normalizeSanityInfo(data) {
     var d = data || {};
     return {
@@ -837,11 +865,18 @@
         header_title: 'The Spontaneous Dance Falls',
         home_materials: ['Glass', 'Textile', 'Metal', 'Archive', 'A/V', 'Performance'],
         materials: [],
-        gallery: ['images/home/fall.jpg'],
+        gallery: [],
         immersive_enabled: true,
         body: [],
         links: [],
-        falls: [],
+        falls: [
+          {
+            label: 'Panel 1',
+            type: '',
+            details: '',
+            images: ['images/home/fall.jpg'],
+          },
+        ],
         homeLineColor: '#3f3739',
         _updatedAt: '',
         _homeNavLabelOverride: '',
@@ -853,11 +888,18 @@
         header_title: "Under the Needle's Eye",
         home_materials: ['Textile', 'Metal', 'Archive', 'A/V'],
         materials: [],
-        gallery: ['images/home/needle.jpg'],
+        gallery: [],
         immersive_enabled: true,
         body: [],
         links: [],
-        falls: [],
+        falls: [
+          {
+            label: 'Panel 1',
+            type: '',
+            details: '',
+            images: ['images/home/needle.jpg'],
+          },
+        ],
         homeLineColor: '#713b38',
         _updatedAt: '',
         _homeNavLabelOverride: '',
@@ -869,11 +911,18 @@
         header_title: 'overlocked',
         home_materials: ['Synthetic', 'Textile', 'Archive', 'A/V', 'Objects'],
         materials: [],
-        gallery: ['images/home/overlocked.jpg'],
+        gallery: [],
         immersive_enabled: true,
         body: [],
         links: [],
-        falls: [],
+        falls: [
+          {
+            label: 'Panel 1',
+            type: '',
+            details: '',
+            images: ['images/home/overlocked.jpg'],
+          },
+        ],
         homeLineColor: '#1851a3',
         _updatedAt: '',
         _homeNavLabelOverride: '',
@@ -943,9 +992,7 @@
       window.SDV_HOME_PROJECTS = projects.map(function (p) {
         var prefix = rootPrefix();
         var splash = p._homeSplashOverride ? resolveImageSrc(p._homeSplashOverride, prefix) : '';
-        if (!splash && Array.isArray(p.gallery) && p.gallery[0]) {
-          splash = resolveImageSrc(p.gallery[0], prefix);
-        }
+        if (!splash) splash = firstProjectSplashImage(p, prefix);
         var label =
           (p._homeNavLabelOverride && String(p._homeNavLabelOverride).trim()) ||
           p.header_title ||
@@ -970,8 +1017,7 @@
       try {
         window.SDV_HOME_PROJECTS = getOfflineHomeProjects().map(function (p) {
           var prefix = rootPrefix();
-          var splash = '';
-          if (Array.isArray(p.gallery) && p.gallery[0]) splash = resolveImageSrc(p.gallery[0], prefix);
+          var splash = firstProjectSplashImage(p, prefix);
           var label =
             (p._homeNavLabelOverride && String(p._homeNavLabelOverride).trim()) || p.header_title || p.slug;
           var hl2 = String(p._homeLineColor != null ? p._homeLineColor : p.homeLineColor || '').trim();
@@ -1144,17 +1190,6 @@
     }
   }
 
-  function buildGallery(host, items, prefix) {
-    if (!host) return;
-    host.querySelectorAll('img').forEach(function (el) { el.remove(); });
-    (items || []).forEach(function (src) {
-      var img = document.createElement('img');
-      img.src = resolveImageSrc(src, prefix);
-      img.alt = '';
-      host.appendChild(img);
-    });
-  }
-
   function buildFallTimeline(timelineHost, panelsHost, metaHost, falls, prefix) {
     if (!timelineHost || !panelsHost) return;
     timelineHost.innerHTML = '';
@@ -1203,9 +1238,15 @@
     function setMeta(i) {
       if (!metaHost) return;
       var fall = falls[i] || {};
-      var label = fall.label ? String(fall.label) : '';
-      var type = fall.type ? String(fall.type) : '';
-      metaHost.textContent = type ? (label + ' — ' + type) : label;
+      var type = fall.type ? String(fall.type).trim() : '';
+      metaHost.textContent = type;
+      if (type) {
+        metaHost.removeAttribute('hidden');
+        metaHost.setAttribute('aria-hidden', 'false');
+      } else {
+        metaHost.setAttribute('hidden', '');
+        metaHost.setAttribute('aria-hidden', 'true');
+      }
     }
 
     function setTimelineCurrent(i) {
@@ -1347,16 +1388,12 @@
       var timelineHost = document.getElementById('project-timeline');
       var panelsHost = document.getElementById('project-gallery-panels');
       var metaHost = document.getElementById('project-fall-meta');
+      var panels = effectiveTimelinePanels(data);
 
-      if (timelineHost && panelsHost && Array.isArray(data.falls) && data.falls.length) {
+      if (timelineHost && panelsHost) {
         galleryHost.classList.add('has-falls');
-        buildFallTimeline(timelineHost, panelsHost, metaHost, data.falls, prefix);
-      } else {
-        galleryHost.classList.remove('has-falls');
-        galleryHost.querySelectorAll('.project-timeline, #project-timeline, #project-gallery-panels').forEach(function (el) {
-          if (el && el.parentNode) el.parentNode.removeChild(el);
-        });
-        buildGallery(galleryHost, data.gallery, prefix);
+        galleryHost.querySelectorAll('img').forEach(function (el) { el.remove(); });
+        buildFallTimeline(timelineHost, panelsHost, metaHost, panels, prefix);
       }
     }
   }

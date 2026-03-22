@@ -87,20 +87,32 @@ export const projectType = defineType({
     }),
     defineField({
       name: 'falls',
-      title: 'Falls (timeline panels)',
+      title: 'Timeline panels',
+      description: 'Each panel is a tab with its own images. At least one panel is required.',
       type: 'array',
+      validation: (Rule) => Rule.required().min(1),
       of: [
         defineField({
           name: 'fall',
-          title: 'Fall',
+          title: 'Timeline panel',
           type: 'object',
           fields: [
-            defineField({name: 'label', title: 'Label', type: 'string'}),
-            defineField({name: 'type', title: 'Type', type: 'string'}),
+            defineField({
+              name: 'label',
+              title: 'Tab label',
+              description: 'Shown only on the timeline tab (not repeated below).',
+              type: 'string',
+            }),
+            defineField({
+              name: 'type',
+              title: 'Panel detail',
+              description: 'Optional line shown only below the tabs (subtitle / context). Not shown in the tab.',
+              type: 'string',
+            }),
             defineField({
               name: 'details',
-              title: 'Details (tooltip)',
-              description: 'Optional extra line used as the native tooltip on the timeline.',
+              title: 'Tooltip',
+              description: 'Optional native browser tooltip on the tab; does not repeat the tab label.',
               type: 'string',
             }),
             defineField({
@@ -115,12 +127,6 @@ export const projectType = defineType({
           },
         }),
       ],
-    }),
-    defineField({
-      name: 'gallery',
-      title: 'Gallery images',
-      type: 'array',
-      of: [{type: 'image', options: {hotspot: false}}],
     }),
   ],
   preview: {
