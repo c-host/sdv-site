@@ -17,7 +17,34 @@
 
     <div id="immersive-content" class="immersive-main" aria-label="Immersive content">
       <div class="immersive-inner" id="immersive-inner">
-        <blockquote class="immersive-quote"></blockquote>
+        <div class="immersive-flyer" data-flyer-root>
+          <div class="immersive-flyer__viewport" role="application"
+            aria-label="Archival scan on a mat: drag to pan. Hold Alt and drag to rotate freely. R resets rotation. Shift R snaps to nearest right angle. Alt+scroll or Alt plus minus resize scan. Magnifier follows the pointer. Shift+scroll lens size. Brackets resize lens.">
+            <div class="immersive-flyer__loupe" hidden>
+              <div class="immersive-flyer__loupe-disk">
+                <div class="immersive-flyer__loupe-clip">
+                  <div class="immersive-flyer__loupe-strip">
+                    <img src="../../images/uploads/overlocked-scan-back.jpg" alt="" draggable="false" />
+                  </div>
+                </div>
+              </div>
+              <svg class="immersive-flyer__loupe-ring" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <circle cx="10" cy="10" r="5" fill="none" stroke="currentColor" stroke-width="1.5" />
+                <path d="M14 14l5 5" fill="none" stroke="currentColor" stroke-width="1.5" />
+              </svg>
+            </div>
+            <div class="immersive-flyer__stage">
+              <div class="immersive-flyer__pan">
+                <div class="immersive-flyer__sheet">
+                  <figure class="immersive-flyer__figure">
+                    <img class="immersive-flyer__img" src="../../images/uploads/overlocked-scan-back.jpg"
+                      alt="Archival scan, overlocked" draggable="false" />
+                  </figure>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -46,7 +73,39 @@
     <div class="immersive-abstraction" id="immersive-abstraction" aria-hidden="true">
       <div class="abstraction-inset" id="abstraction-inset">
         <div class="immersive-inner" id="immersive-inner-inset">
-          <blockquote class="immersive-quote"></blockquote>
+          <div class="immersive-flyer" data-flyer-root>
+            <div class="immersive-flyer__viewport" role="application"
+              aria-label="Archival scan on a mat: drag to pan. Hold Alt and drag to rotate freely. R resets rotation. Shift R snaps to nearest right angle. Alt+scroll or Alt plus minus resize scan. Magnifier follows the pointer. Shift+scroll lens size. Brackets resize lens.">
+              <div class="immersive-flyer__loupe" hidden>
+                <div class="immersive-flyer__loupe-disk">
+                  <div class="immersive-flyer__loupe-clip">
+                    <div class="immersive-flyer__loupe-strip">
+                      <img src="../../images/uploads/overlocked-scan-back.jpg" alt="" draggable="false" />
+                    </div>
+                  </div>
+                </div>
+                <svg class="immersive-flyer__loupe-ring" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <circle cx="10" cy="10" r="5" fill="none" stroke="currentColor" stroke-width="1.5" />
+                  <path d="M14 14l5 5" fill="none" stroke="currentColor" stroke-width="1.5" />
+                </svg>
+              </div>
+              <div class="immersive-flyer__hud" aria-hidden="true">
+                <p class="immersive-flyer__hud-hint">Drag to pan · Alt+drag: rotate · Alt+scroll or Alt±: scan size · R:
+                  reset
+                  angle · Shift+R: snap 90° · Shift+scroll: lens size · [ ] lens</p>
+              </div>
+              <div class="immersive-flyer__stage">
+                <div class="immersive-flyer__pan">
+                  <div class="immersive-flyer__sheet">
+                    <figure class="immersive-flyer__figure">
+                      <img class="immersive-flyer__img" src="../../images/uploads/overlocked-scan-back.jpg"
+                        alt="Archival scan, overlocked" draggable="false" />
+                    </figure>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="abstraction-caption-single" id="abstraction-caption-single">

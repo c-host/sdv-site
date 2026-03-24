@@ -14,17 +14,20 @@ materials:
   - Multi-channel video and audio installation equipment
   - Sculptural assemblage elements (objects, packaging, display/podium structures)
 links: []
-gallery:
-  - /images/uploads/overlocked-1.jpg
-  - /images/uploads/overlocked-2.jpg
-  - /images/uploads/overlocked-3.jpg
-  - /images/uploads/overlocked-4.jpg
-  - /images/uploads/overlocked-5.jpg
-  - /images/uploads/overlocked-6.jpg
-  - /images/uploads/overlocked-7.jpg
-  - /images/uploads/overlocked-8.jpg
-  - /images/uploads/overlocked-9.jpg
-  - /images/uploads/overlocked-10.jpg
+falls:
+  - label: Overlocked 1
+    type: Exhibition
+    images:
+      - /images/uploads/overlocked-1.jpg
+      - /images/uploads/overlocked-2.jpg
+      - /images/uploads/overlocked-3.jpg
+      - /images/uploads/overlocked-4.jpg
+      - /images/uploads/overlocked-5.jpg
+      - /images/uploads/overlocked-6.jpg
+      - /images/uploads/overlocked-7.jpg
+      - /images/uploads/overlocked-8.jpg
+      - /images/uploads/overlocked-9.jpg
+      - /images/uploads/overlocked-10.jpg
 ---
 
 **overlocked** is an ongoing artistic research project which seeks to unravel the historical intricacies surrounding the production of counterfeit silk, commonly known as nylon and its contemporary implications on femininity, labor and representation. The project maps the history of material and bodily processes with their connections to social and infrastructural conditions.

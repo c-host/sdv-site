@@ -4,9 +4,7 @@ press:
     url: https://kunstkritikk.com/portrait-of-a-generation/
     description: At the Copenhagen art festival Under, the young scene is clearly in control. But is it also a bit too self-aware?
 
-cv:
-  label: Download CV (PDF)
-  file: documents/sdv-cv.pdf
+cv: []
 ---
 
 Stacey de Voe is a visual artist (b.1988) in New York and currently based in Malmö, Sweden. Through a research oriented approach, her practice uses site specificity and the archive to investigate broader issues concerning material histories, collective memory, feminized labor and friendship. She stages and modulates historiography through a relational process, forging an intimacy with the places and people she inquires.

@@ -17,22 +17,25 @@ links:
     url: https://vimeo.com/1028801166
   - label: Watch video essay (Swedish)
     url: https://vimeo.com/920974931
-gallery:
-  - /images/uploads/needle-1.jpg
-  - /images/uploads/needle-2.jpg
-  - /images/uploads/needle-3.jpg
-  - /images/uploads/needle-4.jpg
-  - /images/uploads/needle-5.jpg
-  - /images/uploads/needle-6.jpg
-  - /images/uploads/needle-7.jpg
-  - /images/uploads/needle-8.jpg
-  - /images/uploads/needle-9.jpg
-  - /images/uploads/needle-10.jpg
-  - /images/uploads/needle-11.jpg
-  - /images/uploads/needle-12.jpg
-  - /images/uploads/needle-13.jpg
-  - /images/uploads/needle-14.jpg
-  - /images/uploads/needle-15.jpg
+falls:
+  - label: Needle 1
+    type: Exhibition
+    images:
+      - /images/uploads/needle-1.jpg
+      - /images/uploads/needle-2.jpg
+      - /images/uploads/needle-3.jpg
+      - /images/uploads/needle-4.jpg
+      - /images/uploads/needle-5.jpg
+      - /images/uploads/needle-6.jpg
+      - /images/uploads/needle-7.jpg
+      - /images/uploads/needle-8.jpg
+      - /images/uploads/needle-9.jpg
+      - /images/uploads/needle-10.jpg
+      - /images/uploads/needle-11.jpg
+      - /images/uploads/needle-12.jpg
+      - /images/uploads/needle-13.jpg
+      - /images/uploads/needle-14.jpg
+      - /images/uploads/needle-15.jpg
 ---
 
 A lost textile industry forms the departing point of Stacey de Voe's exhibition **Under the Needle's Eye** (Under nålens öga). In Kürzel's Factory (1896-1955), where Skånes konstförening’s premises are located, worked spinners, dyers, and weavers; union representatives; and managers. de Voe engages with the context and develops site-specific works that stage the memory of the locale as an intricate supervisor and a world dressed in tartan and duvetyne.
@@ -47,5 +50,5 @@ Kürzel's produced textiles to make garments, but in this exhibition it is the b
 
 The textiles, objects, images and words act as citations in an incomplete story of a bygone place, shaped by de Voe's own experiences from the textile industry. But between the lines, a neglected part of the city of Malmö's history emerges. Under the Needle's Eye provokes reflections between an industrial memory and contemporary labor politics through a story that gives voice to the building and body to the memory.
 
-**Text by** Albin Hillervik
+*Text by Albin Hillervik*
 

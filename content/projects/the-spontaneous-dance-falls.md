@@ -58,11 +58,6 @@ falls:
       - /images/uploads/fall-3-1.jpg
       - /images/uploads/fall-3-2.jpeg
       - /images/uploads/fall-3-3.jpeg
-  - label: Fall 4
-    type: Future Fall
-    images:
-      - /images/uploads/fall-1-14.jpg
-      - /images/uploads/fall-1-14.jpg
 ---
 Stacey de Voe's **The Spontaneous Dance Falls** drifts across histories of collective movement, lingering in the places where bodies in motion have unsettled authority and opened fleeting horizons of possibility. What do we lose when dance is contained, and what might be unleashed when we let it overflow?
 

@@ -58,7 +58,7 @@
   var currentSlug = '';
   /** Default home crosshair / hero frame (matches css :root --line). */
   var HOME_LINE_DEFAULT = '#7e7777';
-  /** When Sanity `homeLineColor` is empty; aligns with context/*.md line color notes. */
+  /** Default project line colors on home page (unless overridden by CMS) . */
   var HOME_LINE_BY_CONTEXT = {
     'the-spontaneous-dance-falls': '#3f3739',
     'under-the-needles-eye': '#713b38',
@@ -75,6 +75,8 @@
       initProject1Immersive();
     } else if (slug === SLUG_NEEDLE) {
       initProject2Immersive();
+    } else if (slug === SLUG_OVER) {
+      initOverlockedFlyer();
     }
   }
 
@@ -259,6 +261,768 @@
     renderProject2Slide(0, { immediate: true });
   }
 
+  /* Loupe bitmap scale = base × scan zoom (user cannot change base). */
+  var FLYER_LOUPE_BASE_MAG = 3.75;
+  var FLYER_LENS_MIN = 36;
+  var FLYER_LENS_MAX = 160;
+  var FLYER_LENS_DEFAULT = 64;
+  var FLYER_IMG_ZOOM_MIN = 0.45;
+  var FLYER_IMG_ZOOM_MAX = 3.5;
+  var PAN_SLACK_ZOOMED_IN = 28;
+  var PAN_MIN_OVERLAP_ZOOMED_OUT = 56;
+
+  /** One global listener calls into latest init (immersive re-entry). */
+  var overlockedFlyerUi = {
+    dispatchKey: function () {},
+    onResize: function () {},
+    flyerZoomIn: function () {},
+    flyerZoomOut: function () {},
+    flyerLensSmaller: function () {},
+    flyerLensLarger: function () {},
+    flyerResetRotation: function () {},
+    flyerSnapRotation: function () {},
+    flyerActionClickBound: false,
+  };
+  var overlockedFlyerDrag = {
+    active: false,
+    lastX: 0,
+    lastY: 0,
+    inst: null,
+    pointerId: null,
+  };
+  var overlockedFlyerRotate = {
+    active: false,
+    inst: null,
+    pointerId: null,
+    lastRad: null,
+  };
+  var overlockedFlyerGlobalBound = false;
+
+  function initOverlockedFlyer() {
+    var roots = document.querySelectorAll('.immersive-flyer[data-flyer-root]');
+    if (!roots.length) return;
+    if (roots[0].getAttribute('data-flyer-bound') === '1') return;
+    for (var ri = 0; ri < roots.length; ri++) {
+      roots[ri].setAttribute('data-flyer-bound', '1');
+    }
+
+    function normalizeImgSrc(img) {
+      var s = img.getAttribute('src') || '';
+      if (!s || /^https?:\/\//i.test(s)) return;
+      var path = s;
+      while (path.indexOf('../') === 0) path = path.slice(3);
+      if (path.charAt(0) === '/') path = path.slice(1);
+      img.src = assetUrl(path);
+    }
+
+    var state = {
+      panX: 0,
+      panY: 0,
+      /* Slightly below 1 so the mat shows around the scan on first paint */
+      imgZoom: 0.92,
+      /* Any angle (degrees); CSS rotate + inverse for loupe hit-test */
+      rotationDeg: 0,
+      lensR: FLYER_LENS_DEFAULT,
+      ptr: false,
+      ptrClientX: 0,
+      ptrClientY: 0,
+      sxf: 0.5,
+      syf: 0.5,
+    };
+
+    function getInstances() {
+      var list = [];
+      roots.forEach(function (root) {
+        list.push({
+          root: root,
+          viewport: root.querySelector('.immersive-flyer__viewport'),
+          stage: root.querySelector('.immersive-flyer__stage'),
+          pan: root.querySelector('.immersive-flyer__pan'),
+          sheet: root.querySelector('.immersive-flyer__sheet'),
+          loupe: root.querySelector('.immersive-flyer__loupe'),
+          loupeStrip: root.querySelector('.immersive-flyer__loupe-strip'),
+          loupeDisk: root.querySelector('.immersive-flyer__loupe-disk'),
+          loupeRing: root.querySelector('.immersive-flyer__loupe-ring'),
+        });
+      });
+      return list;
+    }
+
+    var instances = getInstances();
+
+    instances.forEach(function (inst) {
+      if (!inst.sheet) return;
+      if (inst.sheet.querySelector('.immersive-flyer__transform-origin')) return;
+      var mark = document.createElement('div');
+      mark.className = 'immersive-flyer__transform-origin';
+      mark.setAttribute('aria-hidden', 'true');
+      inst.sheet.appendChild(mark);
+    });
+
+    instances.forEach(function (inst) {
+      inst.root.querySelectorAll('img').forEach(normalizeImgSrc);
+    });
+
+    function clearDraggingUi() {
+      instances.forEach(function (inst) {
+        if (inst.viewport) inst.viewport.classList.remove('is-dragging');
+      });
+    }
+
+    function applyTransforms() {
+      instances.forEach(function (inst) {
+        if (!inst.pan || !inst.sheet) return;
+        inst.pan.style.transform =
+          'translate(' + state.panX + 'px,' + state.panY + 'px)';
+        inst.sheet.style.transform =
+          'rotate(' +
+          state.rotationDeg +
+          'deg) scale(' +
+          state.imgZoom +
+          ')';
+        inst.sheet.style.transformOrigin = 'center center';
+      });
+    }
+
+    /** object-fit: contain rect inside a layout box (iw×ih). */
+    function getContainedImageRect(iw, ih, nw, nh) {
+      if (!nw || !nh || !iw || !ih) return null;
+      var scale = Math.min(iw / nw, ih / nh);
+      var dispW = nw * scale;
+      var dispH = nh * scale;
+      return {
+        imgLeft: (iw - dispW) * 0.5,
+        imgTop: (ih - dispH) * 0.5,
+        dispW: dispW,
+        dispH: dispH,
+      };
+    }
+
+    /** True transform-origin of the sheet in client pixels (not the rotated AABB center). */
+    function sheetTransformOriginClient(sheet) {
+      var m = sheet.querySelector('.immersive-flyer__transform-origin');
+      if (m) {
+        var r = m.getBoundingClientRect();
+        return { cx: r.left + r.width * 0.5, cy: r.top + r.height * 0.5 };
+      }
+      var sr = sheet.getBoundingClientRect();
+      return {
+        cx: sr.left + sr.width * 0.5,
+        cy: sr.top + sr.height * 0.5,
+      };
+    }
+
+    /** Sum offsetLeft/Top from el up to ancestor (pre-transform layout space). */
+    function offsetInAncestor(el, ancestor) {
+      var ox = 0;
+      var oy = 0;
+      var n = el;
+      while (n && n !== ancestor) {
+        ox += n.offsetLeft;
+        oy += n.offsetTop;
+        n = n.offsetParent;
+      }
+      return n === ancestor ? { ox: ox, oy: oy, ok: true } : { ox: 0, oy: 0, ok: false };
+    }
+
+    /**
+     * Pointer → normalized bitmap coords [0,1]. Uses layout-center pivot + img box for object-fit
+     * (same box the browser paints into), so UVs don’t run ahead of the visible scan.
+     */
+    function pointerToImageNorm(px, py, sheet, img) {
+      var oc = sheetTransformOriginClient(sheet);
+      var dx = px - oc.cx;
+      var dy = py - oc.cy;
+      var z = state.imgZoom;
+      if (z < 1e-6) z = 1e-6;
+      var rad = (state.rotationDeg * Math.PI) / 180;
+      var cos = Math.cos(rad);
+      var sin = Math.sin(rad);
+      /* Sheet is rotate(θ) scale(z); CSS applies scale then rotate, so
+         screen delta = R * (z * local). Invert: local = R^-1 * screen / z. */
+      var lx = (dx * cos + dy * sin) / z;
+      var ly = (-dx * sin + dy * cos) / z;
+      var iw = sheet.offsetWidth;
+      var ih = sheet.offsetHeight;
+      if (!iw || !ih) return { sxf: 0.5, syf: 0.5 };
+      var psx = lx + iw * 0.5;
+      var psy = ly + ih * 0.5;
+      var nw = img.naturalWidth;
+      var nh = img.naturalHeight;
+      if (!nw || !nh) return { sxf: 0.5, syf: 0.5 };
+
+      var off = offsetInAncestor(img, sheet);
+      var boxW;
+      var boxH;
+      var relx;
+      var rely;
+      if (off.ok) {
+        boxW = img.offsetWidth;
+        boxH = img.offsetHeight;
+        relx = psx - off.ox;
+        rely = psy - off.oy;
+      } else {
+        boxW = iw;
+        boxH = ih;
+        relx = psx;
+        rely = psy;
+      }
+      if (!boxW || !boxH) return { sxf: 0.5, syf: 0.5 };
+
+      var box = getContainedImageRect(boxW, boxH, nw, nh);
+      var sxf;
+      var syf;
+      if (box) {
+        sxf = (relx - box.imgLeft) / box.dispW;
+        syf = (rely - box.imgTop) / box.dispH;
+      } else {
+        sxf = relx / boxW;
+        syf = rely / boxH;
+      }
+      return {
+        sxf: Math.min(1, Math.max(0, sxf)),
+        syf: Math.min(1, Math.max(0, syf)),
+      };
+    }
+
+    function syncAfterRotationChange() {
+      clampPan();
+      applyTransforms();
+      updateLoupe();
+    }
+
+    function unwrapAngleDelta(dRad) {
+      while (dRad > Math.PI) dRad -= 2 * Math.PI;
+      while (dRad < -Math.PI) dRad += 2 * Math.PI;
+      return dRad;
+    }
+
+    function clampPan() {
+      var inst0 = instances[0];
+      if (!inst0 || !inst0.stage || !inst0.sheet) return;
+      var slack = PAN_SLACK_ZOOMED_IN;
+      var minOv = PAN_MIN_OVERLAP_ZOOMED_OUT;
+      var iter;
+      for (iter = 0; iter < 8; iter++) {
+        applyTransforms();
+        var stR = inst0.stage.getBoundingClientRect();
+        var shR = inst0.sheet.getBoundingClientRect();
+        var ax = 0;
+        var ay = 0;
+        var zoomedOutH = shR.width <= stR.width + 0.5;
+        var zoomedOutV = shR.height <= stR.height + 0.5;
+
+        if (zoomedOutH) {
+          var needW = Math.min(minOv, shR.width);
+          if (shR.right < stR.left + needW) ax += stR.left + needW - shR.right;
+          if (shR.left > stR.right - needW) ax += stR.right - needW - shR.left;
+        } else {
+          if (shR.left > stR.left + slack) ax -= shR.left - stR.left - slack;
+          if (shR.right < stR.right - slack) ax += stR.right - slack - shR.right;
+        }
+
+        if (zoomedOutV) {
+          var needH = Math.min(minOv, shR.height);
+          if (shR.bottom < stR.top + needH) ay += stR.top + needH - shR.bottom;
+          if (shR.top > stR.bottom - needH) ay += stR.bottom - needH - shR.top;
+        } else {
+          if (shR.top > stR.top + slack) ay -= shR.top - stR.top - slack;
+          if (shR.bottom < stR.bottom - slack) ay += stR.bottom - slack - shR.bottom;
+        }
+
+        if (Math.abs(ax) < 0.25 && Math.abs(ay) < 0.25) break;
+        state.panX += ax;
+        state.panY += ay;
+      }
+    }
+
+    function updateLoupe() {
+      var Seff = FLYER_LOUPE_BASE_MAG * state.imgZoom;
+      var R = state.lensR;
+      if (!state.ptr) {
+        instances.forEach(function (inst) {
+          if (inst.loupe) inst.loupe.setAttribute('hidden', '');
+        });
+        return;
+      }
+
+      instances.forEach(function (inst) {
+        if (!inst.loupe || !inst.loupeStrip || !inst.sheet || !inst.loupeDisk || !inst.viewport) return;
+        var img = inst.sheet.querySelector('.immersive-flyer__img');
+        if (!img) return;
+        var vr = inst.viewport.getBoundingClientRect();
+        var px = state.ptrClientX;
+        var py = state.ptrClientY;
+
+        var norm = pointerToImageNorm(px, py, inst.sheet, img);
+        state.sxf = norm.sxf;
+        state.syf = norm.syf;
+
+        var iw = inst.sheet.offsetWidth;
+        var ih = inst.sheet.offsetHeight;
+        if (!iw || !ih) return;
+
+        /* Strip img is 100%×100% of iw×ih; map UV with same iw/ih contain (not figure/img offsets). */
+        var nw = img.naturalWidth;
+        var nh = img.naturalHeight;
+        var stripBox = getContainedImageRect(iw, ih, nw, nh);
+        var stripX;
+        var stripY;
+        if (stripBox) {
+          stripX = stripBox.imgLeft + state.sxf * stripBox.dispW;
+          stripY = stripBox.imgTop + state.syf * stripBox.dispH;
+        } else {
+          stripX = state.sxf * iw;
+          stripY = state.syf * ih;
+        }
+
+        inst.loupe.removeAttribute('hidden');
+
+        inst.loupeDisk.style.width = 2 * R + 'px';
+        inst.loupeDisk.style.height = 2 * R + 'px';
+        inst.loupeDisk.style.left = -R + 'px';
+        inst.loupeDisk.style.top = -R + 'px';
+        inst.loupeDisk.style.transformOrigin = 'center center';
+        inst.loupeDisk.style.transform = 'rotate(' + state.rotationDeg + 'deg)';
+        if (inst.loupeRing) {
+          var handleGap = Math.max(1, Math.min(3, Math.round(R * 0.028)));
+          inst.loupeRing.style.left = R + handleGap + 'px';
+          inst.loupeRing.style.top = R + handleGap + 'px';
+        }
+        inst.loupeStrip.style.width = iw + 'px';
+        inst.loupeStrip.style.height = ih + 'px';
+        inst.loupeStrip.style.transform =
+          'translate(' +
+          (R - stripX * Seff) +
+          'px,' +
+          (R - stripY * Seff) +
+          'px) scale(' +
+          Seff +
+          ')';
+
+        inst.loupe.style.left = px - vr.left + 'px';
+        inst.loupe.style.top = py - vr.top + 'px';
+        inst.loupe.style.transform = 'translate(-50%, -50%)';
+      });
+    }
+
+    function syncPointerFromEvent(e, inst) {
+      state.ptrClientX = e.clientX;
+      state.ptrClientY = e.clientY;
+      var stg = inst.stage.getBoundingClientRect();
+      var px = e.clientX;
+      var py = e.clientY;
+      if (px >= stg.left && px <= stg.right && py >= stg.top && py <= stg.bottom) {
+        state.ptr = true;
+      }
+    }
+
+    function onPointerMoveStage(e, inst) {
+      syncPointerFromEvent(e, inst);
+
+      if (overlockedFlyerRotate.active && overlockedFlyerRotate.inst === inst) {
+        e.preventDefault();
+        applyTransforms();
+        var oc = sheetTransformOriginClient(inst.sheet);
+        var rad = Math.atan2(e.clientY - oc.cy, e.clientX - oc.cx);
+        var dRad = unwrapAngleDelta(rad - overlockedFlyerRotate.lastRad);
+        state.rotationDeg += (dRad * 180) / Math.PI;
+        overlockedFlyerRotate.lastRad = rad;
+        clampPan();
+        applyTransforms();
+        updateLoupe();
+        return;
+      }
+
+      if (overlockedFlyerDrag.active && overlockedFlyerDrag.inst === inst) {
+        e.preventDefault();
+        var dx = e.clientX - overlockedFlyerDrag.lastX;
+        var dy = e.clientY - overlockedFlyerDrag.lastY;
+        overlockedFlyerDrag.lastX = e.clientX;
+        overlockedFlyerDrag.lastY = e.clientY;
+        state.panX += dx;
+        state.panY += dy;
+        clampPan();
+        applyTransforms();
+        updateLoupe();
+        return;
+      }
+
+      if (!state.ptr) return;
+      updateLoupe();
+    }
+
+    instances.forEach(function (inst) {
+      if (!inst.viewport || !inst.stage || !inst.pan || !inst.sheet) return;
+
+      inst.stage.addEventListener(
+        'pointerdown',
+        function (e) {
+          if (e.button !== 0) return;
+          if (e.shiftKey) return;
+          e.preventDefault();
+          if (e.altKey) {
+            overlockedFlyerRotate.active = true;
+            overlockedFlyerRotate.inst = inst;
+            overlockedFlyerRotate.pointerId = e.pointerId;
+            applyTransforms();
+            var oc0 = sheetTransformOriginClient(inst.sheet);
+            overlockedFlyerRotate.lastRad = Math.atan2(
+              e.clientY - oc0.cy,
+              e.clientX - oc0.cx,
+            );
+            inst.viewport.classList.add('is-dragging');
+            try {
+              inst.stage.setPointerCapture(e.pointerId);
+            } catch (err) { }
+            syncPointerFromEvent(e, inst);
+            return;
+          }
+          overlockedFlyerDrag.active = true;
+          overlockedFlyerDrag.inst = inst;
+          overlockedFlyerDrag.pointerId = e.pointerId;
+          overlockedFlyerDrag.lastX = e.clientX;
+          overlockedFlyerDrag.lastY = e.clientY;
+          inst.viewport.classList.add('is-dragging');
+          try {
+            inst.stage.setPointerCapture(e.pointerId);
+          } catch (err) { }
+          syncPointerFromEvent(e, inst);
+        },
+        true,
+      );
+
+      inst.stage.addEventListener('pointermove', function (e) {
+        onPointerMoveStage(e, inst);
+      });
+
+      inst.stage.addEventListener('pointerleave', function () {
+        if (!overlockedFlyerDrag.active && !overlockedFlyerRotate.active) {
+          state.ptr = false;
+          updateLoupe();
+        }
+      });
+
+      inst.stage.addEventListener('pointerenter', function (e) {
+        syncPointerFromEvent(e, inst);
+        updateLoupe();
+      });
+
+      inst.stage.addEventListener('pointerup', function (e) {
+        if (overlockedFlyerRotate.active && overlockedFlyerRotate.inst === inst) {
+          try {
+            inst.stage.releasePointerCapture(e.pointerId);
+          } catch (errR) { }
+          overlockedFlyerRotate.active = false;
+          overlockedFlyerRotate.inst = null;
+          overlockedFlyerRotate.pointerId = null;
+          overlockedFlyerRotate.lastRad = null;
+          clearDraggingUi();
+          return;
+        }
+        if (!overlockedFlyerDrag.active || overlockedFlyerDrag.inst !== inst) return;
+        try {
+          inst.stage.releasePointerCapture(e.pointerId);
+        } catch (err2) { }
+        overlockedFlyerDrag.active = false;
+        overlockedFlyerDrag.inst = null;
+        overlockedFlyerDrag.pointerId = null;
+        clearDraggingUi();
+      });
+
+      inst.stage.addEventListener('pointercancel', function () {
+        overlockedFlyerRotate.active = false;
+        overlockedFlyerRotate.inst = null;
+        overlockedFlyerRotate.pointerId = null;
+        overlockedFlyerRotate.lastRad = null;
+        overlockedFlyerDrag.active = false;
+        overlockedFlyerDrag.inst = null;
+        overlockedFlyerDrag.pointerId = null;
+        clearDraggingUi();
+      });
+
+      inst.stage.addEventListener(
+        'lostpointercapture',
+        function () {
+          overlockedFlyerRotate.active = false;
+          overlockedFlyerRotate.inst = null;
+          overlockedFlyerRotate.pointerId = null;
+          overlockedFlyerRotate.lastRad = null;
+          overlockedFlyerDrag.active = false;
+          overlockedFlyerDrag.inst = null;
+          overlockedFlyerDrag.pointerId = null;
+          clearDraggingUi();
+        },
+      );
+
+      inst.stage.addEventListener(
+        'wheel',
+        function (e) {
+          if (e.altKey) {
+            e.preventDefault();
+            var factor = e.deltaY < 0 ? 1.09 : 1 / 1.09;
+            state.imgZoom = Math.min(
+              FLYER_IMG_ZOOM_MAX,
+              Math.max(FLYER_IMG_ZOOM_MIN, state.imgZoom * factor),
+            );
+            clampPan();
+            applyTransforms();
+            updateLoupe();
+            return;
+          }
+          if (!e.shiftKey) return;
+          e.preventDefault();
+          var d = e.deltaY > 0 ? -5 : 5;
+          state.lensR = Math.min(FLYER_LENS_MAX, Math.max(FLYER_LENS_MIN, state.lensR + d));
+          updateLoupe();
+        },
+        { passive: false },
+      );
+
+    });
+
+    function flyerApplyZoomFactor(factor) {
+      state.imgZoom = Math.min(
+        FLYER_IMG_ZOOM_MAX,
+        Math.max(FLYER_IMG_ZOOM_MIN, state.imgZoom * factor),
+      );
+      clampPan();
+      applyTransforms();
+      updateLoupe();
+    }
+
+    overlockedFlyerUi.flyerZoomIn = function () {
+      if (currentSlug !== SLUG_OVER) return;
+      flyerApplyZoomFactor(1.12);
+    };
+    overlockedFlyerUi.flyerZoomOut = function () {
+      if (currentSlug !== SLUG_OVER) return;
+      flyerApplyZoomFactor(1 / 1.12);
+    };
+    overlockedFlyerUi.flyerLensSmaller = function () {
+      if (currentSlug !== SLUG_OVER) return;
+      state.lensR = Math.max(FLYER_LENS_MIN, state.lensR - 8);
+      updateLoupe();
+    };
+    overlockedFlyerUi.flyerLensLarger = function () {
+      if (currentSlug !== SLUG_OVER) return;
+      state.lensR = Math.min(FLYER_LENS_MAX, state.lensR + 8);
+      updateLoupe();
+    };
+    overlockedFlyerUi.flyerResetRotation = function () {
+      if (currentSlug !== SLUG_OVER) return;
+      state.rotationDeg = 0;
+      syncAfterRotationChange();
+    };
+    overlockedFlyerUi.flyerSnapRotation = function () {
+      if (currentSlug !== SLUG_OVER) return;
+      state.rotationDeg = Math.round(state.rotationDeg / 90) * 90;
+      syncAfterRotationChange();
+    };
+
+    overlockedFlyerUi.dispatchKey = function (e) {
+      if (currentSlug !== SLUG_OVER) return;
+      if (!document.querySelector('.immersive-flyer[data-flyer-root]')) return;
+      var target = document.activeElement;
+      if (
+        target &&
+        (target.matches('input, textarea, select') || target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.altKey) {
+        if (e.key === '=' || e.key === '+') {
+          overlockedFlyerUi.flyerZoomIn();
+          e.preventDefault();
+          return;
+        }
+        if (e.key === '-' || e.key === '_') {
+          overlockedFlyerUi.flyerZoomOut();
+          e.preventDefault();
+          return;
+        }
+      }
+      if (e.key === '[') {
+        overlockedFlyerUi.flyerLensSmaller();
+        e.preventDefault();
+      } else if (e.key === ']') {
+        overlockedFlyerUi.flyerLensLarger();
+        e.preventDefault();
+      } else if (
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        (e.key === 'r' || e.key === 'R')
+      ) {
+        if (e.shiftKey) {
+          overlockedFlyerUi.flyerSnapRotation();
+        } else {
+          overlockedFlyerUi.flyerResetRotation();
+        }
+        e.preventDefault();
+      }
+    };
+
+    overlockedFlyerUi.onResize = function () {
+      if (currentSlug !== SLUG_OVER) return;
+      clampPan();
+      applyTransforms();
+      updateLoupe();
+    };
+
+    overlockedFlyerUi.endDrag = function () {
+      clearDraggingUi();
+    };
+
+    if (!overlockedFlyerGlobalBound) {
+      overlockedFlyerGlobalBound = true;
+      document.addEventListener('keydown', function (e) {
+        overlockedFlyerUi.dispatchKey(e);
+      });
+      window.addEventListener('resize', function () {
+        overlockedFlyerUi.onResize();
+      });
+      document.addEventListener('pointerup', function (e) {
+        if (overlockedFlyerRotate.active) {
+          var instR = overlockedFlyerRotate.inst;
+          var pidR = overlockedFlyerRotate.pointerId;
+          overlockedFlyerRotate.active = false;
+          overlockedFlyerRotate.inst = null;
+          overlockedFlyerRotate.pointerId = null;
+          overlockedFlyerRotate.lastRad = null;
+          if (overlockedFlyerUi.endDrag) overlockedFlyerUi.endDrag();
+          if (instR && instR.stage && pidR != null) {
+            try {
+              instR.stage.releasePointerCapture(pidR);
+            } catch (relR) { }
+          }
+          return;
+        }
+        if (!overlockedFlyerDrag.active) return;
+        var inst = overlockedFlyerDrag.inst;
+        var pid = overlockedFlyerDrag.pointerId;
+        overlockedFlyerDrag.active = false;
+        overlockedFlyerDrag.inst = null;
+        overlockedFlyerDrag.pointerId = null;
+        if (overlockedFlyerUi.endDrag) overlockedFlyerUi.endDrag();
+        if (inst && inst.stage && pid != null) {
+          try {
+            inst.stage.releasePointerCapture(pid);
+          } catch (rel) { }
+        }
+      });
+    }
+
+    instances.forEach(function (inst) {
+      if (!inst.sheet) return;
+      inst.sheet.querySelectorAll('img').forEach(function (im) {
+        im.addEventListener('load', function () {
+          clampPan();
+          applyTransforms();
+          updateLoupe();
+        });
+      });
+    });
+
+    if (!overlockedFlyerUi.flyerActionClickBound) {
+      overlockedFlyerUi.flyerActionClickBound = true;
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-flyer-action]');
+        if (!btn || currentSlug !== SLUG_OVER) return;
+        e.preventDefault();
+        var act = btn.getAttribute('data-flyer-action');
+        if (act === 'zoom-in') {
+          overlockedFlyerUi.flyerZoomIn();
+        } else if (act === 'zoom-out') {
+          overlockedFlyerUi.flyerZoomOut();
+        } else if (act === 'lens-smaller') {
+          overlockedFlyerUi.flyerLensSmaller();
+        } else if (act === 'lens-larger') {
+          overlockedFlyerUi.flyerLensLarger();
+        } else if (act === 'reset-rotation') {
+          overlockedFlyerUi.flyerResetRotation();
+        } else if (act === 'snap-rotation') {
+          overlockedFlyerUi.flyerSnapRotation();
+        }
+      });
+    }
+
+    clampPan();
+    applyTransforms();
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        clampPan();
+        applyTransforms();
+        updateLoupe();
+      });
+    });
+  }
+
+  var immersiveChromeDockBound = false;
+
+  function bindImmersiveChromeDock() {
+    if (immersiveChromeDockBound) return;
+    var page = document.querySelector(
+      '.immersive-page[data-slug="overlocked"], .immersive-page[data-slug="under-the-needles-eye"]',
+    );
+    if (!page || !document.getElementById('immersive-chrome-dock')) return;
+    immersiveChromeDockBound = true;
+
+    document.addEventListener('keydown', function onImmersiveChromeEscape(e) {
+      if (e.key !== 'Escape') return;
+      var p = document.querySelector(
+        '.immersive-page[data-slug="overlocked"].is-chrome-collapsed, .immersive-page[data-slug="under-the-needles-eye"].is-chrome-collapsed',
+      );
+      if (!p) return;
+      var t = e.target;
+      if (
+        t &&
+        (t.matches('input, textarea, select') || t.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      p.classList.remove('is-chrome-collapsed');
+      var toggle = document.getElementById('chrome-toggle-btn');
+      if (toggle) {
+        toggle.setAttribute('aria-pressed', 'false');
+        toggle.setAttribute(
+          'aria-label',
+          'Hide interface. Press Escape to show again.',
+        );
+        toggle.title = 'Hide interface (Escape to show)';
+      }
+    });
+
+    document.addEventListener('click', function onChromeToggleClick(e) {
+      var tg = e.target.closest('#chrome-toggle-btn');
+      if (!tg) return;
+      var pg = tg.closest('.immersive-page');
+      if (!pg) return;
+      var collapsed = pg.classList.toggle('is-chrome-collapsed');
+      tg.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+      if (collapsed) {
+        tg.setAttribute('aria-label', 'Show interface');
+        tg.title = 'Show interface (Escape)';
+      } else {
+        tg.setAttribute(
+          'aria-label',
+          'Hide interface. Press Escape to show again.',
+        );
+        tg.title = 'Hide interface (Escape to show)';
+      }
+    });
+
+    document.addEventListener('click', function onStoryDockClick(e) {
+      var b = e.target.closest('[data-story-action]');
+      if (!b || currentSlug !== SLUG_NEEDLE) return;
+      e.preventDefault();
+      var a = b.getAttribute('data-story-action');
+      if (a === 'prev') goProject2Prev();
+      else if (a === 'next') goProject2Next();
+    });
+  }
+
   var project2KeyboardBound = false;
   function initProject2Keyboard() {
     if (project2KeyboardBound) return;
@@ -358,7 +1122,7 @@
       panel.setAttribute('aria-hidden', 'false');
       if (page) page.classList.add('is-abstracted');
       startCaptionRotation();
-      if (currentSlug === SLUG_DANCE) {
+      if (currentSlug === SLUG_DANCE || currentSlug === SLUG_OVER) {
         var mainScroll = document.getElementById('immersive-content');
         var insetScroll = document.getElementById('abstraction-inset');
         if (mainScroll && insetScroll) {
@@ -368,7 +1132,7 @@
         }
       }
     } else {
-      if (currentSlug === SLUG_DANCE) {
+      if (currentSlug === SLUG_DANCE || currentSlug === SLUG_OVER) {
         var mainScroll2 = document.getElementById('immersive-content');
         var insetScroll2 = document.getElementById('abstraction-inset');
         if (mainScroll2 && insetScroll2) {
@@ -791,6 +1555,8 @@
     setAbstractionMode(false);
     hideBackdrop();
     startCaptionRotation();
+
+    bindImmersiveChromeDock();
 
     document.getElementById('abstraction-btn')?.addEventListener('click', function () {
       var panel = document.getElementById('immersive-abstraction');
