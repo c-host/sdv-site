@@ -273,14 +273,14 @@
 
   /** One global listener calls into latest init (immersive re-entry). */
   var overlockedFlyerUi = {
-    dispatchKey: function () {},
-    onResize: function () {},
-    flyerZoomIn: function () {},
-    flyerZoomOut: function () {},
-    flyerLensSmaller: function () {},
-    flyerLensLarger: function () {},
-    flyerResetRotation: function () {},
-    flyerSnapRotation: function () {},
+    dispatchKey: function () { },
+    onResize: function () { },
+    flyerZoomIn: function () { },
+    flyerZoomOut: function () { },
+    flyerLensSmaller: function () { },
+    flyerLensLarger: function () { },
+    flyerResetRotation: function () { },
+    flyerSnapRotation: function () { },
     flyerActionClickBound: false,
   };
   var overlockedFlyerDrag = {
