@@ -443,6 +443,12 @@ img {
     padding-left: 0;
     align-items: flex-start;
     text-align: left;
+    /* Padding-top reserves space visually but must not steal taps from the centered image + zoom (z-index below). */
+    pointer-events: none;
+  }
+
+  .home-projects .home-project {
+    pointer-events: auto;
   }
 }
 
