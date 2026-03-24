@@ -1,24 +1,107 @@
 /**
  * Shared helpers for the static site: path prefixes, Presentation preview query params,
  * and home materials icon rendering. Loaded before content-loader.js and app.js.
+ *
+ * assetUrl / rootPrefix: GitHub Pages "project" sites live under /repo-name/; we infer the
+ * static site root from the resolved URL of this file (.../repo-name/js/sdv-shared.js) so
+ * assets resolve to /repo-name/images/... instead of /images/... (404).
  */
 (function () {
   'use strict';
+
+  var cachedSiteRootFromScript = '';
+
+  /**
+   * Optional override when autodetection fails (e.g. unusual script URLs):
+   *   window.SDV_SITE_ROOT = 'https://user.github.io/repo-name/';
+   */
+  function configuredSiteRoot() {
+    try {
+      var w = window.SDV_SITE_ROOT;
+      if (w == null || !String(w).trim()) return '';
+      var u = String(w).trim().replace(/\/?$/, '/');
+      if (/^https?:\/\//i.test(u)) return u;
+      if (u.charAt(0) === '/') return window.location.origin + u.replace(/\/?$/, '/');
+    } catch (e) { }
+    return '';
+  }
+
+  /** Site root URL (with trailing slash) derived from where sdv-shared.js was loaded from. */
+  function siteRootFromSharedScript() {
+    if (cachedSiteRootFromScript) return cachedSiteRootFromScript;
+    var scripts = document.getElementsByTagName('script');
+    for (var i = 0; i < scripts.length; i++) {
+      var src = scripts[i].src;
+      if (!src || src.indexOf('sdv-shared.js') === -1) continue;
+      try {
+        var u = new URL(src);
+        var p = u.pathname;
+        var marker = '/js/sdv-shared.js';
+        var idx = p.toLowerCase().lastIndexOf(marker);
+        if (idx === -1) continue;
+        var rootPath = p.slice(0, idx + 1);
+        cachedSiteRootFromScript = u.origin + rootPath;
+        return cachedSiteRootFromScript;
+      } catch (err) { }
+    }
+    return '';
+  }
+
+  function effectiveSiteRoot() {
+    return configuredSiteRoot() || siteRootFromSharedScript();
+  }
+
+  function pathnameDirname(pathname) {
+    var p = String(pathname || '/').replace(/\/+$/, '') || '/';
+    if (p === '/') return '/';
+    var slash = p.lastIndexOf('/');
+    if (slash <= 0) return '/';
+    return p.slice(0, slash) || '/';
+  }
 
   function getPathDepth() {
     var parts = (window.location.pathname || '').split('/').filter(Boolean);
     return parts.length;
   }
 
+  /**
+   * Relative prefix from this page's directory to the static site root (for prefix + 'images/...').
+   * Falls back to ../ per URL segment when script-based root is unknown.
+   */
   function rootPrefix() {
-    return '../'.repeat(getPathDepth());
+    var absRoot = effectiveSiteRoot();
+    if (!absRoot) {
+      return '../'.repeat(getPathDepth());
+    }
+    try {
+      var rootUrl = new URL(absRoot);
+      var rootPath = rootUrl.pathname.replace(/\/?$/, '') || '/';
+      var curDir = pathnameDirname(window.location.pathname);
+      var curParts = curDir === '/' ? [] : curDir.split('/').filter(Boolean);
+      var rootParts = rootPath === '/' ? [] : rootPath.split('/').filter(Boolean);
+      var i = 0;
+      while (i < curParts.length && i < rootParts.length && curParts[i] === rootParts[i]) {
+        i++;
+      }
+      var ups = curParts.length - i;
+      var rest = rootParts.slice(i);
+      var out = '../'.repeat(ups) + rest.join('/');
+      if (out && !out.endsWith('/')) out += '/';
+      return out;
+    } catch (e2) {
+      return '../'.repeat(getPathDepth());
+    }
   }
 
-  /** Resolve a site-relative asset path for the current page depth. */
+  /** Resolve a site-relative asset path (works on GitHub Pages project sites, not only domain root). */
   function assetUrl(path) {
     var s = String(path || '');
     if (/^https?:\/\//i.test(s)) return s;
     if (s.startsWith('/')) s = s.slice(1);
+    var root = effectiveSiteRoot();
+    if (root) {
+      return root.replace(/\/?$/, '/') + s;
+    }
     return rootPrefix() + s;
   }
 
