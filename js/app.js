@@ -282,6 +282,7 @@
     flyerResetRotation: function () { },
     flyerSnapRotation: function () { },
     flyerActionClickBound: false,
+    hudToggleBound: false,
   };
   var overlockedFlyerDrag = {
     active: false,
@@ -318,8 +319,8 @@
     var state = {
       panX: 0,
       panY: 0,
-      /* Slightly below 1 so the mat shows around the scan on first paint */
-      imgZoom: 0.92,
+      /* Below 1 so the mat shows; a bit smaller to clear Overview + abstraction chrome */
+      imgZoom: 0.85,
       /* Any angle (degrees); CSS rotate + inverse for loupe hit-test */
       rotationDeg: 0,
       lensR: FLYER_LENS_DEFAULT,
@@ -584,10 +585,24 @@
         inst.loupeDisk.style.top = -R + 'px';
         inst.loupeDisk.style.transformOrigin = 'center center';
         inst.loupeDisk.style.transform = 'rotate(' + state.rotationDeg + 'deg)';
+        /*
+         * Place the wireframe ring so the small circle in the SVG is externally tangent to the
+         * lens disk (radius R) along the SE diagonal — same at every lens size.
+         * SVG: circle cx=cy=10 r=5 in viewBox 24; ring element is 26×26px.
+         */
+        var ringPx = 26;
+        var ringVb = 24;
+        var iconRv = 5;
+        var Rsm = iconRv * (ringPx / ringVb);
+        var invSqrt2 = Math.SQRT1_2;
+        var glassDist = R + Rsm;
+        var glassCx = glassDist * invSqrt2;
+        var glassCy = glassDist * invSqrt2;
+        var cxOff = (10 / ringVb) * ringPx;
+        var cyOff = (10 / ringVb) * ringPx;
         if (inst.loupeRing) {
-          var handleGap = Math.max(1, Math.min(3, Math.round(R * 0.028)));
-          inst.loupeRing.style.left = R + handleGap + 'px';
-          inst.loupeRing.style.top = R + handleGap + 'px';
+          inst.loupeRing.style.left = glassCx - cxOff + 'px';
+          inst.loupeRing.style.top = glassCy - cyOff + 'px';
         }
         inst.loupeStrip.style.width = iw + 'px';
         inst.loupeStrip.style.height = ih + 'px';
@@ -600,9 +615,10 @@
           Seff +
           ')';
 
-        inst.loupe.style.left = px - vr.left + 'px';
-        inst.loupe.style.top = py - vr.top + 'px';
-        inst.loupe.style.transform = 'translate(-50%, -50%)';
+        /* Pointer stays on the small-glass center (same hit target as before). */
+        inst.loupe.style.left = px - vr.left - glassCx + 'px';
+        inst.loupe.style.top = py - vr.top - glassCy + 'px';
+        inst.loupe.style.transform = 'none';
       });
     }
 
@@ -944,6 +960,27 @@
         } else if (act === 'snap-rotation') {
           overlockedFlyerUi.flyerSnapRotation();
         }
+      });
+    }
+
+    if (!overlockedFlyerUi.hudToggleBound) {
+      overlockedFlyerUi.hudToggleBound = true;
+      document.addEventListener('click', function (e) {
+        var tg = e.target.closest('.immersive-flyer__hud-toggle');
+        if (!tg || currentSlug !== SLUG_OVER) return;
+        e.preventDefault();
+        var root = tg.closest('[data-flyer-root]');
+        if (!root) return;
+        var hidden = root.classList.toggle('is-flyer-help-hidden');
+        tg.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+        tg.setAttribute(
+          'title',
+          hidden ? 'Show on-screen controls' : 'Hide on-screen controls',
+        );
+        tg.setAttribute(
+          'aria-label',
+          hidden ? 'Show on-screen controls' : 'Hide on-screen controls',
+        );
       });
     }
 

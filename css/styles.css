@@ -929,6 +929,31 @@ img {
   font-weight: 600;
 }
 
+/* Immersive photo-story + overlocked: transparent nav so content runs edge-to-edge under the link */
+.immersive-page[data-slug="overlocked"] .immersive-nav,
+.immersive-page[data-slug="under-the-needles-eye"] .immersive-nav {
+  background: transparent;
+}
+
+.immersive-page[data-slug="overlocked"] .immersive-nav a,
+.immersive-page[data-slug="under-the-needles-eye"] .immersive-nav a {
+  color: #fff;
+  text-shadow:
+    0 0 4px #000,
+    0 0 8px #000,
+    0 1px 2px #000,
+    1px 0 2px #000,
+    0 1px 2px #000,
+    -1px 0 2px #000,
+    0 -1px 2px #000,
+    1px 1px 3px #000;
+}
+
+.immersive-page[data-slug="overlocked"] .immersive-nav a:hover,
+.immersive-page[data-slug="under-the-needles-eye"] .immersive-nav a:hover {
+  color: #fff;
+}
+
 /* In abstraction view: over the image, no solid background; contrast so readable on any image */
 .immersive-page.is-abstracted .immersive-nav {
   background: transparent;
@@ -975,6 +1000,21 @@ img {
 }
 
 .immersive-inner:has(.immersive-story) {
+  padding: 0;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  padding-top: 0;
+}
+
+/* Full-bleed immersive when content is the overlocked flyer (match photo-story layout) */
+.immersive-main:has(.immersive-flyer) {
+  overflow: hidden;
+}
+
+.immersive-inner:has(.immersive-flyer) {
   padding: 0;
   min-height: 100%;
   display: flex;
@@ -1289,7 +1329,7 @@ img {
   -webkit-user-select: none;
 }
 
-/* In-canvas hint (above fixed chrome dock) */
+/* In-canvas hint + tools: bottom-right stack; panel can collapse via toggle */
 .immersive-flyer__hud {
   position: absolute;
   inset: 0;
@@ -1298,32 +1338,105 @@ img {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  align-items: stretch;
-  padding: 0 0.5rem;
-  padding-bottom: 5.25rem;
+  align-items: flex-end;
+  gap: 0.4rem;
+  padding: 0 max(1.5rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
+}
+
+.immersive-flyer__hud-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  max-width: min(100%, 38rem);
+  pointer-events: none;
+}
+
+.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-tools>.immersive-flyer__tool-btn:not(.immersive-flyer__hud-toggle) {
+  display: none;
+}
+
+.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-hint {
+  display: none;
+}
+
+.immersive-flyer__hud-tools {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  padding: 0;
+  pointer-events: auto;
+}
+
+.immersive-flyer__tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 1);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  cursor: pointer;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.immersive-flyer__tool-btn:hover {
+  background: rgba(0, 0, 0, 0.55);
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+.immersive-flyer__tool-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.immersive-flyer__tool-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Toggle shares .immersive-flyer__tool-btn; only icon swap rules below */
+
+.immersive-flyer__hud-toggle .immersive-flyer__hud-toggle-plus {
+  display: none;
+}
+
+.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-toggle .immersive-flyer__hud-toggle-minus {
+  display: none;
+}
+
+.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-toggle .immersive-flyer__hud-toggle-plus {
+  display: block;
 }
 
 .immersive-flyer__hud-hint {
   margin: 0;
   font-family: var(--font-light), var(--font);
-  font-size: 0.65rem;
+  font-size: 0.95rem;
   line-height: 1.35;
   letter-spacing: 0.02em;
-  color: #1a1816;
-  white-space: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  text-align: center;
-  -webkit-text-stroke: 0.35px rgba(255, 255, 255, 0.95);
+  color: #000000;
+  white-space: normal;
+  overflow: visible;
+  text-align: right;
+  max-width: 100%;
+  /* -webkit-text-stroke: 0.15px rgba(255, 255, 255, 0.95); */
   text-shadow:
-    0 0 3px #fff,
-    0 0 6px #fff,
     0 0 2px #fff,
+    0 0 6px #fff,
     1px 0 0 #fff,
     -1px 0 0 #fff,
     0 1px 0 #fff,
-    0 -1px 0 #fff;
+    0 -1px 0 #fff,
+    1px 1px 0 #fff,
+    -1px -1px 0 #fff;
 }
 
 .immersive-page.is-chrome-collapsed .immersive-flyer__hud {
@@ -1599,6 +1712,10 @@ img {
 .backdrop-zoom-btn .icon-magnifier {
   width: 24px;
   height: 24px;
+  position: fixed;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 15;
 }
 
 .abstraction-backdrop::before {
@@ -1683,21 +1800,6 @@ img {
   pointer-events: auto;
 }
 
-/* Full-bleed abstraction (no inset-within-inset) for flyer + needle */
-.immersive-page[data-slug="overlocked"].is-abstracted .immersive-abstraction,
-.immersive-page[data-slug="under-the-needles-eye"].is-abstracted .immersive-abstraction {
-  padding: 0;
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-  gap: 0;
-}
-
-.immersive-page[data-slug="overlocked"].is-abstracted .abstraction-inset,
-.immersive-page[data-slug="under-the-needles-eye"].is-abstracted .abstraction-inset {
-  border: none;
-  box-shadow: none;
-  background: transparent;
-}
-
 .abstraction-inset .immersive-inner:has(.immersive-flyer) {
   padding: 0;
   min-height: 100%;
@@ -1706,6 +1808,8 @@ img {
   align-items: stretch;
   justify-content: stretch;
   max-width: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 /* When caption image is shown, panel margin becomes transparent so image is visible */
@@ -1753,12 +1857,6 @@ img {
   padding: 0 var(--gap);
   background: transparent;
   pointer-events: auto;
-}
-
-.immersive-page[data-slug="overlocked"].is-abstracted .abstraction-caption-single,
-.immersive-page[data-slug="under-the-needles-eye"].is-abstracted .abstraction-caption-single {
-  bottom: max(3.5rem, env(safe-area-inset-bottom, 0px));
-  white-space: nowrap;
 }
 
 .caption-current {
@@ -1927,11 +2025,9 @@ img {
 
   0%,
   100% {
-    /* Rest state: a persistent halo so the glow reads on pure black backgrounds. */
     filter:
       drop-shadow(0 0 10px rgba(184, 134, 11, 0.22)) drop-shadow(0 0 18px rgba(184, 134, 11, 0.12));
     text-shadow:
-      /* Always-on black outline for legibility on top of images/video. */
       0 0 4px #000,
       0 0 6px #000,
       0 1px 2px #000,
@@ -1939,17 +2035,14 @@ img {
       0 1px 2px #000,
       -1px 0 2px #000,
       0 -1px 2px #000,
-      /* Gold glow layers: smaller = tighter edge, larger = softer radiation. */
       0 0 14px rgba(184, 134, 11, 0.30),
       0 0 32px rgba(184, 134, 11, 0.18);
   }
 
   50% {
-    /* Peak state: stronger/longer glow to imply “click me” without changing layout. */
     filter:
       drop-shadow(0 0 18px rgba(184, 134, 11, 0.42)) drop-shadow(0 0 36px rgba(184, 134, 11, 0.22));
     text-shadow:
-      /* Keep the same outline in peak state (prevents the glow from washing out text). */
       0 0 4px #000,
       0 0 6px #000,
       0 1px 2px #000,
@@ -1957,7 +2050,6 @@ img {
       0 1px 2px #000,
       -1px 0 2px #000,
       0 -1px 2px #000,
-      /* Stronger gold glow at peak: increase alpha and blur for more drama. */
       0 0 22px rgba(184, 134, 11, 0.55),
       0 0 52px rgba(184, 134, 11, 0.28);
   }

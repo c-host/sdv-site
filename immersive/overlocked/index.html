@@ -33,6 +33,64 @@
                 <path d="M14 14l5 5" fill="none" stroke="currentColor" stroke-width="1.5" />
               </svg>
             </div>
+            <div class="immersive-flyer__hud" aria-hidden="true">
+              <div class="immersive-flyer__hud-panel">
+                <div class="immersive-flyer__hud-tools">
+                  <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="zoom-in"
+                    aria-label="Zoom scan in (same as Alt and plus)" title="Zoom scan in (Alt +)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <circle cx="10" cy="10" r="5" />
+                      <path d="M14 14l5 5" />
+                      <path d="M10 8v4M8 10h4" />
+                    </svg>
+                  </button>
+                  <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="zoom-out"
+                    aria-label="Zoom scan out (same as Alt and minus)" title="Zoom scan out (Alt −)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <circle cx="10" cy="10" r="5" />
+                      <path d="M14 14l5 5" />
+                      <path d="M7 10h6" />
+                    </svg>
+                  </button>
+                  <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="lens-smaller"
+                    aria-label="Smaller magnifier lens (same as left bracket)" title="Smaller lens ([)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <path d="M9 6H6v12h3" />
+                      <path d="M15 6h3v12h-3" />
+                      <circle cx="12" cy="12" r="2.5" />
+                    </svg>
+                  </button>
+                  <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="lens-larger"
+                    aria-label="Larger magnifier lens (same as right bracket)" title="Larger lens (])">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <path d="M8 6H5v12h3" />
+                      <path d="M16 6h3v12h-3" />
+                      <circle cx="12" cy="12" r="4" />
+                    </svg>
+                  </button>
+                  <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="reset-rotation"
+                    aria-label="Reset rotation to upright (same as R)" title="Reset rotation (R)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <path d="M18.5 11a6.5 6.5 0 1 0-2.8 5.3" />
+                      <path d="M19 7.5V11h-3.5" />
+                    </svg>
+                  </button>
+                  <button type="button" class="immersive-flyer__tool-btn immersive-flyer__hud-toggle"
+                    aria-expanded="true" title="Hide on-screen controls" aria-label="Hide on-screen controls">
+                    <svg class="immersive-flyer__hud-toggle-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.5" aria-hidden="true">
+                      <path d="M6 12h12" />
+                    </svg>
+                    <svg class="immersive-flyer__hud-toggle-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.5" aria-hidden="true">
+                      <path d="M12 6v12M6 12h12" />
+                    </svg>
+                  </button>
+                </div>
+                <p class="immersive-flyer__hud-hint">Drag: pan · Alt+drag: rotate · Alt+scroll: scan size ·
+                  Shift+scroll: lens size</p>
+              </div>
+            </div>
             <div class="immersive-flyer__stage">
               <div class="immersive-flyer__pan">
                 <div class="immersive-flyer__sheet">
@@ -90,9 +148,62 @@
                 </svg>
               </div>
               <div class="immersive-flyer__hud" aria-hidden="true">
-                <p class="immersive-flyer__hud-hint">Drag to pan · Alt+drag: rotate · Alt+scroll or Alt±: scan size · R:
-                  reset
-                  angle · Shift+R: snap 90° · Shift+scroll: lens size · [ ] lens</p>
+                <div class="immersive-flyer__hud-panel">
+                  <div class="immersive-flyer__hud-tools">
+                    <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="zoom-in"
+                      aria-label="Zoom scan in (same as Alt and plus)" title="Zoom scan in (Alt +)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <circle cx="10" cy="10" r="5" />
+                        <path d="M14 14l5 5" />
+                        <path d="M10 8v4M8 10h4" />
+                      </svg>
+                    </button>
+                    <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="zoom-out"
+                      aria-label="Zoom scan out (same as Alt and minus)" title="Zoom scan out (Alt −)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <circle cx="10" cy="10" r="5" />
+                        <path d="M14 14l5 5" />
+                        <path d="M7 10h6" />
+                      </svg>
+                    </button>
+                    <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="lens-smaller"
+                      aria-label="Smaller magnifier lens (same as left bracket)" title="Smaller lens ([)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M9 6H6v12h3" />
+                        <path d="M15 6h3v12h-3" />
+                        <circle cx="12" cy="12" r="2.5" />
+                      </svg>
+                    </button>
+                    <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="lens-larger"
+                      aria-label="Larger magnifier lens (same as right bracket)" title="Larger lens (])">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M8 6H5v12h3" />
+                        <path d="M16 6h3v12h-3" />
+                        <circle cx="12" cy="12" r="4" />
+                      </svg>
+                    </button>
+                    <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="reset-rotation"
+                      aria-label="Reset rotation to upright (same as R)" title="Reset rotation (R)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M18.5 11a6.5 6.5 0 1 0-2.8 5.3" />
+                        <path d="M19 7.5V11h-3.5" />
+                      </svg>
+                    </button>
+                    <button type="button" class="immersive-flyer__tool-btn immersive-flyer__hud-toggle"
+                      aria-expanded="true" title="Hide on-screen controls" aria-label="Hide on-screen controls">
+                      <svg class="immersive-flyer__hud-toggle-minus" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M6 12h12" />
+                      </svg>
+                      <svg class="immersive-flyer__hud-toggle-plus" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M12 6v12M6 12h12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <p class="immersive-flyer__hud-hint">Drag: pan · Alt+drag: rotate · Alt+scroll: scan size ·
+                    Shift+scroll: lens size</p>
+                </div>
               </div>
               <div class="immersive-flyer__stage">
                 <div class="immersive-flyer__pan">
