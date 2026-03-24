@@ -19,12 +19,12 @@
       <div class="immersive-inner" id="immersive-inner">
         <div class="immersive-flyer" data-flyer-root>
           <div class="immersive-flyer__viewport" role="application"
-            aria-label="Archival scan on a mat: drag to pan. Hold Alt and drag to rotate freely. R resets rotation. Shift R snaps to nearest right angle. Alt+scroll or Alt plus minus resize scan. Magnifier follows the pointer. Shift+scroll lens size. Brackets resize lens.">
+            aria-label="Archival scan on a mat: drag to pan. Hold Alt and drag to rotate freely. R resets rotation. Shift R snaps to nearest right angle. Alt+scroll or Alt plus minus resize scan. Magnifier follows the pointer. Shift+scroll lens size. Brackets resize lens. F flips to the other side of the sheet at the same position and zoom.">
             <div class="immersive-flyer__loupe" hidden>
               <div class="immersive-flyer__loupe-disk">
                 <div class="immersive-flyer__loupe-clip">
                   <div class="immersive-flyer__loupe-strip">
-                    <img src="../../images/uploads/overlocked-scan-back.jpg" alt="" draggable="false" />
+                    <img src="" alt="" draggable="false" />
                   </div>
                 </div>
               </div>
@@ -68,6 +68,14 @@
                       <circle cx="12" cy="12" r="4" />
                     </svg>
                   </button>
+                  <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="flip-side"
+                    aria-label="Flip to the other side of the sheet (same pan, zoom, and rotation). Keyboard: F."
+                    title="Flip sheet — other side (F)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <path d="M5 6h6.5v12H5zM12.5 6H19v12h-6.5z" />
+                      <path d="M12 8v8" stroke-linecap="round" />
+                    </svg>
+                  </button>
                   <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="reset-rotation"
                     aria-label="Reset rotation to upright (same as R)" title="Reset rotation (R)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -88,20 +96,20 @@
                   </button>
                 </div>
                 <p class="immersive-flyer__hud-hint">Drag: pan · Alt+drag: rotate · Alt+scroll: scan size ·
-                  Shift+scroll: lens size</p>
+                  Shift+scroll: lens size · F: flip sheet</p>
               </div>
             </div>
             <div class="immersive-flyer__stage">
               <div class="immersive-flyer__pan">
                 <div class="immersive-flyer__sheet">
                   <figure class="immersive-flyer__figure">
-                    <img class="immersive-flyer__img" src="../../images/uploads/overlocked-scan-back.jpg"
-                      alt="Archival scan, overlocked" draggable="false" />
+                    <img class="immersive-flyer__img" src="" alt="Archival scan, overlocked" draggable="false" />
                   </figure>
                 </div>
               </div>
             </div>
           </div>
+          <script src="../../js/overlocked-flyer-boot.js"></script>
         </div>
       </div>
     </div>
@@ -133,12 +141,12 @@
         <div class="immersive-inner" id="immersive-inner-inset">
           <div class="immersive-flyer" data-flyer-root>
             <div class="immersive-flyer__viewport" role="application"
-              aria-label="Archival scan on a mat: drag to pan. Hold Alt and drag to rotate freely. R resets rotation. Shift R snaps to nearest right angle. Alt+scroll or Alt plus minus resize scan. Magnifier follows the pointer. Shift+scroll lens size. Brackets resize lens.">
+              aria-label="Archival scan on a mat: drag to pan. Hold Alt and drag to rotate freely. R resets rotation. Shift R snaps to nearest right angle. Alt+scroll or Alt plus minus resize scan. Magnifier follows the pointer. Shift+scroll lens size. Brackets resize lens. F flips to the other side of the sheet at the same position and zoom.">
               <div class="immersive-flyer__loupe" hidden>
                 <div class="immersive-flyer__loupe-disk">
                   <div class="immersive-flyer__loupe-clip">
                     <div class="immersive-flyer__loupe-strip">
-                      <img src="../../images/uploads/overlocked-scan-back.jpg" alt="" draggable="false" />
+                      <img src="" alt="" draggable="false" />
                     </div>
                   </div>
                 </div>
@@ -182,40 +190,48 @@
                         <circle cx="12" cy="12" r="4" />
                       </svg>
                     </button>
-                    <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="reset-rotation"
-                      aria-label="Reset rotation to upright (same as R)" title="Reset rotation (R)">
+                    <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="flip-side"
+                      aria-label="Flip to the other side of the sheet (same pan, zoom, and rotation). Keyboard: F."
+                      title="Flip sheet — other side (F)">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <path d="M18.5 11a6.5 6.5 0 1 0-2.8 5.3" />
-                        <path d="M19 7.5V11h-3.5" />
+                        <path d="M5 6h6.5v12H5zM12.5 6H19v12h-6.5z" />
+                        <path d="M12 8v8" stroke-linecap="round" />
                       </svg>
                     </button>
-                    <button type="button" class="immersive-flyer__tool-btn immersive-flyer__hud-toggle"
-                      aria-expanded="true" title="Hide on-screen controls" aria-label="Hide on-screen controls">
-                      <svg class="immersive-flyer__hud-toggle-minus" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <path d="M6 12h12" />
-                      </svg>
-                      <svg class="immersive-flyer__hud-toggle-plus" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <path d="M12 6v12M6 12h12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <p class="immersive-flyer__hud-hint">Drag: pan · Alt+drag: rotate · Alt+scroll: scan size ·
-                    Shift+scroll: lens size</p>
+                  <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="reset-rotation"
+                    aria-label="Reset rotation to upright (same as R)" title="Reset rotation (R)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <path d="M18.5 11a6.5 6.5 0 1 0-2.8 5.3" />
+                      <path d="M19 7.5V11h-3.5" />
+                    </svg>
+                  </button>
+                  <button type="button" class="immersive-flyer__tool-btn immersive-flyer__hud-toggle"
+                    aria-expanded="true" title="Hide on-screen controls" aria-label="Hide on-screen controls">
+                    <svg class="immersive-flyer__hud-toggle-minus" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <path d="M6 12h12" />
+                    </svg>
+                    <svg class="immersive-flyer__hud-toggle-plus" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <path d="M12 6v12M6 12h12" />
+                    </svg>
+                  </button>
+                </div>
+                <p class="immersive-flyer__hud-hint">Drag: pan · Alt+drag: rotate · Alt+scroll: scan size ·
+                  Shift+scroll: lens size · F: flip sheet</p>
                 </div>
               </div>
               <div class="immersive-flyer__stage">
                 <div class="immersive-flyer__pan">
                   <div class="immersive-flyer__sheet">
                     <figure class="immersive-flyer__figure">
-                      <img class="immersive-flyer__img" src="../../images/uploads/overlocked-scan-back.jpg"
-                        alt="Archival scan, overlocked" draggable="false" />
+                      <img class="immersive-flyer__img" src="" alt="Archival scan, overlocked" draggable="false" />
                     </figure>
                   </div>
                 </div>
               </div>
             </div>
+            <script src="../../js/overlocked-flyer-boot.js"></script>
           </div>
         </div>
       </div>

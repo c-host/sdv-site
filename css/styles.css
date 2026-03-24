@@ -1278,6 +1278,11 @@ img {
   --flyer-max: none;
   --flyer-paper: #e8e4dc;
   --flyer-ink: #2a2622;
+  /* HUD scale (overridden at breakpoints) */
+  --flyer-hud-btn: 2.35rem;
+  --flyer-hud-icon: 21px;
+  --flyer-hud-hint: 0.7rem;
+  --flyer-hud-gap: 0.35rem;
   width: 100%;
   max-width: none;
   margin: 0;
@@ -1339,8 +1344,46 @@ img {
   flex-direction: column;
   justify-content: flex-end;
   align-items: flex-end;
-  gap: 0.4rem;
-  padding: 0 max(1.5rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
+  gap: var(--flyer-hud-gap);
+  padding:
+    0 max(1rem, env(safe-area-inset-right)) max(var(--gap), env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
+}
+
+/* Collapsed: + control bottom-right, same inset as page chrome; size matches abstraction btn (~2rem) */
+.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud {
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding-left: max(0.5rem, env(safe-area-inset-left));
+  padding-right: max(var(--gap), env(safe-area-inset-right));
+  padding-bottom: max(var(--gap), env(safe-area-inset-bottom));
+}
+
+.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-panel {
+  align-items: flex-end;
+  align-self: flex-end;
+}
+
+.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-tools {
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/*
+ * Match .immersive-abstraction-btn footprint (24px icon + 0.25rem padding each side) at every breakpoint
+ * so the + lines up horizontally with the abstraction control when HUD is collapsed.
+ */
+.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-toggle.immersive-flyer__tool-btn {
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  box-sizing: border-box;
+  padding: 0;
+}
+
+.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-toggle svg {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .immersive-flyer__hud-panel {
@@ -1365,7 +1408,7 @@ img {
   flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.25rem;
+  gap: 0.2rem;
   padding: 0;
   pointer-events: auto;
 }
@@ -1374,8 +1417,10 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: var(--flyer-hud-btn);
+  height: var(--flyer-hud-btn);
+  min-width: var(--flyer-hud-btn);
+  min-height: var(--flyer-hud-btn);
   padding: 0;
   border: 1px solid rgba(0, 0, 0, 1);
   border-radius: 3px;
@@ -1398,8 +1443,8 @@ img {
 }
 
 .immersive-flyer__tool-btn svg {
-  width: 22px;
-  height: 22px;
+  width: var(--flyer-hud-icon);
+  height: var(--flyer-hud-icon);
 }
 
 /* Toggle shares .immersive-flyer__tool-btn; only icon swap rules below */
@@ -1419,7 +1464,7 @@ img {
 .immersive-flyer__hud-hint {
   margin: 0;
   font-family: var(--font-light), var(--font);
-  font-size: 0.95rem;
+  font-size: var(--flyer-hud-hint);
   line-height: 1.35;
   letter-spacing: 0.02em;
   color: #000000;
@@ -1427,7 +1472,6 @@ img {
   overflow: visible;
   text-align: right;
   max-width: 100%;
-  /* -webkit-text-stroke: 0.15px rgba(255, 255, 255, 0.95); */
   text-shadow:
     0 0 2px #fff,
     0 0 6px #fff,
@@ -1441,6 +1485,41 @@ img {
 
 .immersive-page.is-chrome-collapsed .immersive-flyer__hud {
   visibility: hidden;
+}
+
+@media (max-width: 1024px) {
+  .immersive-flyer {
+    --flyer-hud-btn: 2.1rem;
+    --flyer-hud-icon: 19px;
+    --flyer-hud-hint: 0.65rem;
+    --flyer-hud-gap: 0.3rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .immersive-flyer {
+    --flyer-hud-btn: 1.95rem;
+    --flyer-hud-icon: 18px;
+    --flyer-hud-hint: 0.6rem;
+    --flyer-hud-gap: 0.28rem;
+  }
+
+  .immersive-flyer__hud-panel {
+    max-width: min(100%, 32rem);
+  }
+}
+
+@media (max-width: 480px) {
+  .immersive-flyer {
+    --flyer-hud-btn: 1.8rem;
+    --flyer-hud-icon: 16px;
+    --flyer-hud-hint: 0.55rem;
+    --flyer-hud-gap: 0.22rem;
+  }
+
+  .immersive-flyer__hud-tools {
+    gap: 0.15rem;
+  }
 }
 
 /* Fixed chrome: above abstraction panel; aligns with bottom-left loupe exit */
@@ -1616,10 +1695,11 @@ img {
   top: 0;
   border-radius: 50%;
   overflow: hidden;
-  background: #111;
+  /* Match mat paper where magnified UV is outside the scan (not black) */
+  background: var(--flyer-paper);
   box-shadow:
     inset 0 0 0 2px rgba(255, 255, 255, 0.95),
-    inset 0 0 12px rgba(0, 0, 0, 0.25);
+    inset 0 0 12px rgba(0, 0, 0, 0.12);
 }
 
 .immersive-flyer__loupe-clip {
@@ -1643,7 +1723,7 @@ img {
   height: 100%;
   object-fit: contain;
   pointer-events: none;
-  background: #f5f2eb;
+  background: var(--flyer-paper);
 }
 
 /* Position (left/top) is set in JS next to the lens disk */

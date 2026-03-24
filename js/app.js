@@ -270,6 +270,21 @@
   var FLYER_IMG_ZOOM_MAX = 3.5;
   var PAN_SLACK_ZOOMED_IN = 28;
   var PAN_MIN_OVERLAP_ZOOMED_OUT = 56;
+  var FLYER_SCAN_FRONT = 'images/uploads/overlocked-scan-front.jpg';
+  var FLYER_SCAN_BACK = 'images/uploads/overlocked-scan-back.jpg';
+  var FLYER_PERSIST_KEY = 'sdv:overlocked-flyer-v1';
+
+  function loadOverlockedFlyerPersisted() {
+    try {
+      var raw = sessionStorage.getItem(FLYER_PERSIST_KEY);
+      if (!raw) return null;
+      var o = JSON.parse(raw);
+      if (!o || o.v !== 1 || typeof o !== 'object') return null;
+      return o;
+    } catch (err) {
+      return null;
+    }
+  }
 
   /** One global listener calls into latest init (immersive re-entry). */
   var overlockedFlyerUi = {
@@ -281,6 +296,7 @@
     flyerLensLarger: function () { },
     flyerResetRotation: function () { },
     flyerSnapRotation: function () { },
+    flyerFlipSide: function () { },
     flyerActionClickBound: false,
     hudToggleBound: false,
   };
@@ -307,15 +323,6 @@
       roots[ri].setAttribute('data-flyer-bound', '1');
     }
 
-    function normalizeImgSrc(img) {
-      var s = img.getAttribute('src') || '';
-      if (!s || /^https?:\/\//i.test(s)) return;
-      var path = s;
-      while (path.indexOf('../') === 0) path = path.slice(3);
-      if (path.charAt(0) === '/') path = path.slice(1);
-      img.src = assetUrl(path);
-    }
-
     var state = {
       panX: 0,
       panY: 0,
@@ -329,7 +336,37 @@
       ptrClientY: 0,
       sxf: 0.5,
       syf: 0.5,
+      /* Which physical side of the sheet is shown (same pan/zoom/rotation for both scans). */
+      side: 'front',
     };
+
+    var persistedFlyer = loadOverlockedFlyerPersisted();
+    if (persistedFlyer) {
+      if (persistedFlyer.side === 'front' || persistedFlyer.side === 'back') {
+        state.side = persistedFlyer.side;
+      }
+      if (typeof persistedFlyer.panX === 'number' && isFinite(persistedFlyer.panX)) {
+        state.panX = persistedFlyer.panX;
+      }
+      if (typeof persistedFlyer.panY === 'number' && isFinite(persistedFlyer.panY)) {
+        state.panY = persistedFlyer.panY;
+      }
+      if (typeof persistedFlyer.imgZoom === 'number' && isFinite(persistedFlyer.imgZoom)) {
+        state.imgZoom = Math.min(
+          FLYER_IMG_ZOOM_MAX,
+          Math.max(FLYER_IMG_ZOOM_MIN, persistedFlyer.imgZoom),
+        );
+      }
+      if (typeof persistedFlyer.rotationDeg === 'number' && isFinite(persistedFlyer.rotationDeg)) {
+        state.rotationDeg = persistedFlyer.rotationDeg;
+      }
+      if (typeof persistedFlyer.lensR === 'number' && isFinite(persistedFlyer.lensR)) {
+        state.lensR = Math.min(
+          FLYER_LENS_MAX,
+          Math.max(FLYER_LENS_MIN, persistedFlyer.lensR),
+        );
+      }
+    }
 
     function getInstances() {
       var list = [];
@@ -360,9 +397,67 @@
       inst.sheet.appendChild(mark);
     });
 
-    instances.forEach(function (inst) {
-      inst.root.querySelectorAll('img').forEach(normalizeImgSrc);
-    });
+    function writeOverlockedFlyerPersist() {
+      try {
+        sessionStorage.setItem(
+          FLYER_PERSIST_KEY,
+          JSON.stringify({
+            v: 1,
+            side: state.side,
+            panX: state.panX,
+            panY: state.panY,
+            imgZoom: state.imgZoom,
+            rotationDeg: state.rotationDeg,
+            lensR: state.lensR,
+          }),
+        );
+      } catch (errW) { }
+    }
+
+    var persistTimer = null;
+    function schedulePersistOverlockedFlyer() {
+      if (persistTimer) clearTimeout(persistTimer);
+      persistTimer = setTimeout(function () {
+        persistTimer = null;
+        writeOverlockedFlyerPersist();
+      }, 200);
+    }
+
+    if (!overlockedFlyerUi._flyerBeforeUnloadBound) {
+      overlockedFlyerUi._flyerBeforeUnloadBound = true;
+      window.addEventListener('beforeunload', function () {
+        if (persistTimer) {
+          clearTimeout(persistTimer);
+          persistTimer = null;
+        }
+        writeOverlockedFlyerPersist();
+      });
+    }
+
+    function applyFlyerScanSide() {
+      var rel = state.side === 'back' ? FLYER_SCAN_BACK : FLYER_SCAN_FRONT;
+      var url = assetUrl(rel);
+      var file = rel.replace(/^.*\//, '');
+      instances.forEach(function (inst) {
+        inst.root.querySelectorAll('img').forEach(function (im) {
+          var cur = im.src.split('?')[0].replace(/^.*\//, '');
+          if (cur === file) return;
+          im.src = url;
+        });
+      });
+    }
+
+    function preloadFlyerBothScans() {
+      var uFront = assetUrl(FLYER_SCAN_FRONT);
+      var uBack = assetUrl(FLYER_SCAN_BACK);
+      var a = new Image();
+      a.src = uFront;
+      var b = new Image();
+      b.src = uBack;
+    }
+
+    applyFlyerScanSide();
+    preloadFlyerBothScans();
 
     function clearDraggingUi() {
       instances.forEach(function (inst) {
@@ -490,6 +585,7 @@
       clampPan();
       applyTransforms();
       updateLoupe();
+      schedulePersistOverlockedFlyer();
     }
 
     function unwrapAngleDelta(dRad) {
@@ -734,6 +830,7 @@
           overlockedFlyerRotate.pointerId = null;
           overlockedFlyerRotate.lastRad = null;
           clearDraggingUi();
+          schedulePersistOverlockedFlyer();
           return;
         }
         if (!overlockedFlyerDrag.active || overlockedFlyerDrag.inst !== inst) return;
@@ -744,6 +841,7 @@
         overlockedFlyerDrag.inst = null;
         overlockedFlyerDrag.pointerId = null;
         clearDraggingUi();
+        schedulePersistOverlockedFlyer();
       });
 
       inst.stage.addEventListener('pointercancel', function () {
@@ -784,6 +882,7 @@
             clampPan();
             applyTransforms();
             updateLoupe();
+            schedulePersistOverlockedFlyer();
             return;
           }
           if (!e.shiftKey) return;
@@ -791,6 +890,7 @@
           var d = e.deltaY > 0 ? -5 : 5;
           state.lensR = Math.min(FLYER_LENS_MAX, Math.max(FLYER_LENS_MIN, state.lensR + d));
           updateLoupe();
+          schedulePersistOverlockedFlyer();
         },
         { passive: false },
       );
@@ -805,6 +905,7 @@
       clampPan();
       applyTransforms();
       updateLoupe();
+      schedulePersistOverlockedFlyer();
     }
 
     overlockedFlyerUi.flyerZoomIn = function () {
@@ -819,11 +920,22 @@
       if (currentSlug !== SLUG_OVER) return;
       state.lensR = Math.max(FLYER_LENS_MIN, state.lensR - 8);
       updateLoupe();
+      schedulePersistOverlockedFlyer();
     };
     overlockedFlyerUi.flyerLensLarger = function () {
       if (currentSlug !== SLUG_OVER) return;
       state.lensR = Math.min(FLYER_LENS_MAX, state.lensR + 8);
       updateLoupe();
+      schedulePersistOverlockedFlyer();
+    };
+    overlockedFlyerUi.flyerFlipSide = function () {
+      if (currentSlug !== SLUG_OVER) return;
+      state.side = state.side === 'back' ? 'front' : 'back';
+      applyFlyerScanSide();
+      clampPan();
+      applyTransforms();
+      updateLoupe();
+      writeOverlockedFlyerPersist();
     };
     overlockedFlyerUi.flyerResetRotation = function () {
       if (currentSlug !== SLUG_OVER) return;
@@ -868,6 +980,14 @@
         !e.ctrlKey &&
         !e.metaKey &&
         !e.altKey &&
+        (e.key === 'f' || e.key === 'F')
+      ) {
+        overlockedFlyerUi.flyerFlipSide();
+        e.preventDefault();
+      } else if (
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
         (e.key === 'r' || e.key === 'R')
       ) {
         if (e.shiftKey) {
@@ -884,6 +1004,7 @@
       clampPan();
       applyTransforms();
       updateLoupe();
+      schedulePersistOverlockedFlyer();
     };
 
     overlockedFlyerUi.endDrag = function () {
@@ -912,6 +1033,7 @@
               instR.stage.releasePointerCapture(pidR);
             } catch (relR) { }
           }
+          schedulePersistOverlockedFlyer();
           return;
         }
         if (!overlockedFlyerDrag.active) return;
@@ -926,6 +1048,7 @@
             inst.stage.releasePointerCapture(pid);
           } catch (rel) { }
         }
+        schedulePersistOverlockedFlyer();
       });
     }
 
@@ -959,6 +1082,8 @@
           overlockedFlyerUi.flyerResetRotation();
         } else if (act === 'snap-rotation') {
           overlockedFlyerUi.flyerSnapRotation();
+        } else if (act === 'flip-side') {
+          overlockedFlyerUi.flyerFlipSide();
         }
       });
     }
