@@ -242,6 +242,46 @@
     renderProject2Slide(currentProject2Slide + 1);
   }
 
+  function bindProject2ImageWrapSwipe(wrap) {
+    if (!wrap || wrap.dataset.storySwipeBound === '1') return;
+    wrap.dataset.storySwipeBound = '1';
+    var startX = 0;
+    var startY = 0;
+    var swipeMin = 52;
+    wrap.addEventListener(
+      'touchstart',
+      function (e) {
+        if (getSliderSlides().length <= 1) return;
+        if (!e.touches || !e.touches.length) return;
+        var t = e.touches[0];
+        startX = t.clientX;
+        startY = t.clientY;
+      },
+      { passive: true },
+    );
+    wrap.addEventListener(
+      'touchend',
+      function (e) {
+        if (getSliderSlides().length <= 1) return;
+        var t = e.changedTouches && e.changedTouches[0];
+        if (!t) return;
+        var dx = t.clientX - startX;
+        var dy = t.clientY - startY;
+        if (Math.abs(dx) < swipeMin || Math.abs(dx) <= Math.abs(dy)) return;
+        if (dx < 0) goProject2Next();
+        else goProject2Prev();
+      },
+      { passive: true },
+    );
+  }
+
+  function clearProject2StoryPending() {
+    getProject2Roots().forEach(function (root) {
+      var wrap = root.querySelector('.immersive-story__image-wrap');
+      if (wrap) wrap.classList.remove('immersive-story__image-wrap--pending');
+    });
+  }
+
   function initProject2Immersive() {
     var roots = getProject2Roots();
     if (!roots.length) return;
@@ -252,13 +292,16 @@
 
       var prevBtn = root.querySelector('.immersive-story__nav--prev');
       var nextBtn = root.querySelector('.immersive-story__nav--next');
+      var imageWrap = root.querySelector('.immersive-story__image-wrap');
 
       if (prevBtn) prevBtn.addEventListener('click', goProject2Prev);
       if (nextBtn) nextBtn.addEventListener('click', goProject2Next);
+      if (imageWrap) bindProject2ImageWrapSwipe(imageWrap);
     });
 
     currentProject2Slide = 0;
     renderProject2Slide(0, { immediate: true });
+    clearProject2StoryPending();
   }
 
   /* Loupe bitmap scale = base × scan zoom (user cannot change base). */
@@ -270,9 +313,54 @@
   var FLYER_IMG_ZOOM_MAX = 3.5;
   var PAN_SLACK_ZOOMED_IN = 28;
   var PAN_MIN_OVERLAP_ZOOMED_OUT = 56;
-  var FLYER_SCAN_FRONT = 'images/uploads/overlocked-scan-front.jpg';
-  var FLYER_SCAN_BACK = 'images/uploads/overlocked-scan-back.jpg';
   var FLYER_PERSIST_KEY = 'sdv:overlocked-flyer-v1';
+
+  function flyerScanRel(side) {
+    var U = window.SDV_FLYER_SCAN_URLS;
+    if (U && typeof U.relPath === 'function') {
+      return U.relPath(side === 'back' ? 'back' : 'front');
+    }
+    return (
+      'images/uploads/overlocked-scan-' + (side === 'back' ? 'back' : 'front') + '.jpg'
+    );
+  }
+
+  function flyerScanRelBasename(rel) {
+    return rel.replace(/^.*\//, '');
+  }
+
+  function shouldDeferOppositeFlyerPreload() {
+    var c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!c) return false;
+    if (c.saveData) return true;
+    var t = c.effectiveType;
+    return t === 'slow-2g' || t === '2g';
+  }
+
+  function runWhenIdle(cb) {
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(
+        function () {
+          cb();
+        },
+        { timeout: 5000 },
+      );
+    } else {
+      setTimeout(cb, 2200);
+    }
+  }
+
+  function isFlyerCoarsePointer() {
+    try {
+      return window.matchMedia('(pointer: coarse)').matches;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  var overlockedFlyerPtrMap = new Map();
+  var overlockedFlyerMulti = null;
+  var overlockedFlyerCoarseDocBound = false;
 
   function loadOverlockedFlyerPersisted() {
     try {
@@ -435,9 +523,9 @@
     }
 
     function applyFlyerScanSide() {
-      var rel = state.side === 'back' ? FLYER_SCAN_BACK : FLYER_SCAN_FRONT;
+      var rel = flyerScanRel(state.side);
       var url = assetUrl(rel);
-      var file = rel.replace(/^.*\//, '');
+      var file = flyerScanRelBasename(rel);
       instances.forEach(function (inst) {
         inst.root.querySelectorAll('img').forEach(function (im) {
           var cur = im.src.split('?')[0].replace(/^.*\//, '');
@@ -447,17 +535,50 @@
       });
     }
 
-    function preloadFlyerBothScans() {
-      var uFront = assetUrl(FLYER_SCAN_FRONT);
-      var uBack = assetUrl(FLYER_SCAN_BACK);
-      var a = new Image();
-      a.src = uFront;
-      var b = new Image();
-      b.src = uBack;
+    var oppositeFlyerPreloadDone = false;
+    var oppositeFlyerPreloadScheduled = false;
+
+    function preloadFlyerOppositeSideOnce() {
+      if (oppositeFlyerPreloadDone) return;
+      if (shouldDeferOppositeFlyerPreload()) return;
+      oppositeFlyerPreloadDone = true;
+      var oppSide = state.side === 'back' ? 'front' : 'back';
+      var rel = flyerScanRel(oppSide);
+      var pre = new Image();
+      pre.src = assetUrl(rel);
+    }
+
+    function scheduleFlyerOppositePreloadAfterVisibleLoad() {
+      if (oppositeFlyerPreloadScheduled) return;
+      oppositeFlyerPreloadScheduled = true;
+      var inst0 = instances[0];
+      if (!inst0 || !inst0.sheet) return;
+      var img = inst0.sheet.querySelector('.immersive-flyer__img');
+      function kick() {
+        runWhenIdle(preloadFlyerOppositeSideOnce);
+      }
+      if (img && img.complete && img.naturalWidth) {
+        kick();
+      } else if (img) {
+        img.addEventListener(
+          'load',
+          function onVis() {
+            img.removeEventListener('load', onVis);
+            kick();
+          },
+        );
+        img.addEventListener(
+          'error',
+          function onErr() {
+            img.removeEventListener('error', onErr);
+            kick();
+          },
+        );
+      }
     }
 
     applyFlyerScanSide();
-    preloadFlyerBothScans();
+    scheduleFlyerOppositePreloadAfterVisibleLoad();
 
     function clearDraggingUi() {
       instances.forEach(function (inst) {
@@ -729,7 +850,130 @@
       }
     }
 
+    function flyerPointersOnInst(inst) {
+      var pts = [];
+      overlockedFlyerPtrMap.forEach(function (v) {
+        if (v.inst === inst) pts.push({ x: v.x, y: v.y });
+      });
+      return pts;
+    }
+
+    function beginFlyerMultitouch(inst, p0, p1) {
+      var midX = (p0.x + p1.x) * 0.5;
+      var midY = (p0.y + p1.y) * 0.5;
+      var dx = p1.x - p0.x;
+      var dy = p1.y - p0.y;
+      var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      overlockedFlyerMulti = {
+        inst: inst,
+        lastMidX: midX,
+        lastMidY: midY,
+        lastDist: dist,
+        lastAng: Math.atan2(dy, dx),
+      };
+    }
+
+    function applyFlyerMultitouchFrame(inst, p0, p1) {
+      if (!overlockedFlyerMulti || overlockedFlyerMulti.inst !== inst) return;
+      var midX = (p0.x + p1.x) * 0.5;
+      var midY = (p0.y + p1.y) * 0.5;
+      var dx = p1.x - p0.x;
+      var dy = p1.y - p0.y;
+      var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      var ang = Math.atan2(dy, dx);
+      var m = overlockedFlyerMulti;
+      var scale = dist / m.lastDist;
+      state.imgZoom = Math.min(
+        FLYER_IMG_ZOOM_MAX,
+        Math.max(FLYER_IMG_ZOOM_MIN, state.imgZoom * scale),
+      );
+      var dRad = unwrapAngleDelta(ang - m.lastAng);
+      state.rotationDeg += (dRad * 180) / Math.PI;
+      state.panX += midX - m.lastMidX;
+      state.panY += midY - m.lastMidY;
+      m.lastMidX = midX;
+      m.lastMidY = midY;
+      m.lastDist = dist;
+      m.lastAng = ang;
+      clampPan();
+      applyTransforms();
+      updateLoupe();
+    }
+
+    function bindFlyerCoarseDocumentListenersOnce() {
+      if (overlockedFlyerCoarseDocBound) return;
+      overlockedFlyerCoarseDocBound = true;
+
+      document.addEventListener(
+        'pointermove',
+        function (e) {
+          if (currentSlug !== SLUG_OVER) return;
+          if (!overlockedFlyerPtrMap.has(e.pointerId)) return;
+          var rec = overlockedFlyerPtrMap.get(e.pointerId);
+          rec.x = e.clientX;
+          rec.y = e.clientY;
+          var inst = rec.inst;
+          var pts = flyerPointersOnInst(inst);
+          if (pts.length >= 2) {
+            e.preventDefault();
+            applyFlyerMultitouchFrame(inst, pts[0], pts[1]);
+          } else if (pts.length === 1) {
+            if (overlockedFlyerRotate.active || overlockedFlyerDrag.active) return;
+            syncPointerFromEvent(e, inst);
+            updateLoupe();
+          }
+        },
+        true,
+      );
+
+      function coarsePointerEnd(e) {
+        if (currentSlug !== SLUG_OVER) return;
+        if (!overlockedFlyerPtrMap.has(e.pointerId)) return;
+        var rec = overlockedFlyerPtrMap.get(e.pointerId);
+        var inst = rec.inst;
+        overlockedFlyerPtrMap.delete(e.pointerId);
+        var pts = flyerPointersOnInst(inst);
+        if (pts.length < 2) {
+          overlockedFlyerMulti = null;
+        }
+        if (pts.length === 0) {
+          try {
+            inst.stage.releasePointerCapture(e.pointerId);
+          } catch (rel0) { }
+          clearDraggingUi();
+          state.ptr = false;
+          updateLoupe();
+          schedulePersistOverlockedFlyer();
+        } else if (pts.length === 1) {
+          overlockedFlyerPtrMap.forEach(function (v, pid) {
+            if (v.inst === inst) {
+              try {
+                inst.stage.setPointerCapture(pid);
+              } catch (c1) { }
+            }
+          });
+          var px = pts[0].x;
+          var py = pts[0].y;
+          state.ptrClientX = px;
+          state.ptrClientY = py;
+          var stg = inst.stage.getBoundingClientRect();
+          if (px >= stg.left && px <= stg.right && py >= stg.top && py <= stg.bottom) {
+            state.ptr = true;
+          }
+          inst.viewport.classList.add('is-dragging');
+          updateLoupe();
+          schedulePersistOverlockedFlyer();
+        }
+      }
+
+      document.addEventListener('pointerup', coarsePointerEnd, true);
+      document.addEventListener('pointercancel', coarsePointerEnd, true);
+    }
+
     function onPointerMoveStage(e, inst) {
+      if (isFlyerCoarsePointer() && overlockedFlyerPtrMap.has(e.pointerId)) {
+        return;
+      }
       syncPointerFromEvent(e, inst);
 
       if (overlockedFlyerRotate.active && overlockedFlyerRotate.inst === inst) {
@@ -790,6 +1034,46 @@
             syncPointerFromEvent(e, inst);
             return;
           }
+          if (isFlyerCoarsePointer()) {
+            bindFlyerCoarseDocumentListenersOnce();
+            overlockedFlyerPtrMap.set(e.pointerId, {
+              inst: inst,
+              x: e.clientX,
+              y: e.clientY,
+            });
+            var cnt = flyerPointersOnInst(inst).length;
+            if (cnt === 1) {
+              overlockedFlyerMulti = null;
+              inst.viewport.classList.add('is-dragging');
+              try {
+                inst.stage.setPointerCapture(e.pointerId);
+              } catch (errC) { }
+              syncPointerFromEvent(e, inst);
+              updateLoupe();
+            } else if (cnt === 2) {
+              overlockedFlyerDrag.active = false;
+              overlockedFlyerDrag.inst = null;
+              overlockedFlyerDrag.pointerId = null;
+              var releaseIds = [];
+              overlockedFlyerPtrMap.forEach(function (v, pid) {
+                if (v.inst === inst) releaseIds.push(pid);
+              });
+              for (var ri = 0; ri < releaseIds.length; ri++) {
+                try {
+                  inst.stage.releasePointerCapture(releaseIds[ri]);
+                } catch (errRel) { }
+              }
+              var pts2 = flyerPointersOnInst(inst);
+              if (pts2.length >= 2) {
+                beginFlyerMultitouch(inst, pts2[0], pts2[1]);
+              }
+              state.ptr = false;
+              clearDraggingUi();
+              inst.viewport.classList.add('is-dragging');
+              updateLoupe();
+            }
+            return;
+          }
           overlockedFlyerDrag.active = true;
           overlockedFlyerDrag.inst = inst;
           overlockedFlyerDrag.pointerId = e.pointerId;
@@ -804,11 +1088,25 @@
         true,
       );
 
+      inst.stage.addEventListener(
+        'touchmove',
+        function (e) {
+          if (!isFlyerCoarsePointer()) return;
+          var c = 0;
+          overlockedFlyerPtrMap.forEach(function (v) {
+            if (v.inst === inst) c++;
+          });
+          if (c >= 2) e.preventDefault();
+        },
+        { passive: false },
+      );
+
       inst.stage.addEventListener('pointermove', function (e) {
         onPointerMoveStage(e, inst);
       });
 
       inst.stage.addEventListener('pointerleave', function () {
+        if (overlockedFlyerPtrMap.size) return;
         if (!overlockedFlyerDrag.active && !overlockedFlyerRotate.active) {
           state.ptr = false;
           updateLoupe();
@@ -821,6 +1119,7 @@
       });
 
       inst.stage.addEventListener('pointerup', function (e) {
+        if (isFlyerCoarsePointer()) return;
         if (overlockedFlyerRotate.active && overlockedFlyerRotate.inst === inst) {
           try {
             inst.stage.releasePointerCapture(e.pointerId);
@@ -845,6 +1144,7 @@
       });
 
       inst.stage.addEventListener('pointercancel', function () {
+        if (isFlyerCoarsePointer()) return;
         overlockedFlyerRotate.active = false;
         overlockedFlyerRotate.inst = null;
         overlockedFlyerRotate.pointerId = null;
@@ -858,6 +1158,7 @@
       inst.stage.addEventListener(
         'lostpointercapture',
         function () {
+          if (isFlyerCoarsePointer()) return;
           overlockedFlyerRotate.active = false;
           overlockedFlyerRotate.inst = null;
           overlockedFlyerRotate.pointerId = null;
@@ -930,12 +1231,65 @@
     };
     overlockedFlyerUi.flyerFlipSide = function () {
       if (currentSlug !== SLUG_OVER) return;
-      state.side = state.side === 'back' ? 'front' : 'back';
-      applyFlyerScanSide();
-      clampPan();
-      applyTransforms();
-      updateLoupe();
-      writeOverlockedFlyerPersist();
+      var nextSide = state.side === 'back' ? 'front' : 'back';
+      var rel = flyerScanRel(nextSide);
+      var url = assetUrl(rel);
+      var inst0 = instances[0];
+      var sheetImg =
+        inst0 && inst0.sheet && inst0.sheet.querySelector('.immersive-flyer__img');
+      var nextFile = flyerScanRelBasename(rel);
+      var curFile =
+        sheetImg && sheetImg.src
+          ? sheetImg.src.split('?')[0].replace(/^.*\//, '')
+          : '';
+
+      function applyFlipAndRefresh() {
+        state.side = nextSide;
+        applyFlyerScanSide();
+        instances.forEach(function (i) {
+          if (i.viewport) i.viewport.classList.remove('is-flyer-flip-loading');
+        });
+        clampPan();
+        applyTransforms();
+        updateLoupe();
+        writeOverlockedFlyerPersist();
+      }
+
+      if (curFile === nextFile) {
+        applyFlipAndRefresh();
+        return;
+      }
+
+      instances.forEach(function (i) {
+        if (i.viewport) i.viewport.classList.add('is-flyer-flip-loading');
+      });
+
+      var loader = new Image();
+      loader.src = url;
+
+      function finishDecode() {
+        applyFlipAndRefresh();
+      }
+
+      if (loader.complete && loader.naturalWidth) {
+        if (loader.decode) {
+          loader.decode().then(finishDecode).catch(finishDecode);
+        } else {
+          finishDecode();
+        }
+        return;
+      }
+
+      loader.onload = function () {
+        if (loader.decode) {
+          loader.decode().then(finishDecode).catch(finishDecode);
+        } else {
+          finishDecode();
+        }
+      };
+      loader.onerror = function () {
+        finishDecode();
+      };
     };
     overlockedFlyerUi.flyerResetRotation = function () {
       if (currentSlug !== SLUG_OVER) return;
@@ -1001,6 +1355,7 @@
 
     overlockedFlyerUi.onResize = function () {
       if (currentSlug !== SLUG_OVER) return;
+      applyFlyerScanSide();
       clampPan();
       applyTransforms();
       updateLoupe();
@@ -1735,7 +2090,7 @@
     document.getElementById('abstraction-backdrop')?.addEventListener('click', function () {
       var slug = this.dataset.targetSlug || currentSlug;
       hideBackdrop();
-      window.location.href = withPreviewQuery('../../immersive/' + slug + '/');
+      window.location.href = withPreviewQuery('../../project/' + slug + '/');
     });
 
     document.getElementById('backdrop-zoom-btn')?.addEventListener('click', function (e) {
@@ -1752,6 +2107,9 @@
     currentSlug = slug || currentSlug;
     document.querySelectorAll('.immersive-story').forEach(function (el) {
       el.removeAttribute('data-bound');
+    });
+    document.querySelectorAll('.immersive-page .immersive-story__image-wrap').forEach(function (w) {
+      w.removeAttribute('data-story-swipe-bound');
     });
     initImmersiveInteractions(slug);
     stopCaptionRotation();

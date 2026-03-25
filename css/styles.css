@@ -1324,6 +1324,11 @@ img {
   cursor: none;
 }
 
+.immersive-flyer__viewport.is-flyer-flip-loading .immersive-flyer__sheet {
+  opacity: 0.62;
+  transition: opacity 0.12s ease;
+}
+
 .immersive-flyer__stage {
   position: relative;
   width: 100%;
@@ -1489,6 +1494,20 @@ img {
     -1px -1px 0 #fff;
 }
 
+.immersive-flyer__hud-hint--touch {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .immersive-flyer__hud-hint--desktop {
+    display: none;
+  }
+
+  .immersive-flyer__hud-hint--touch {
+    display: block;
+  }
+}
+
 .immersive-page.is-chrome-collapsed .immersive-flyer__hud {
   visibility: hidden;
 }
@@ -1594,11 +1613,6 @@ img {
 
 .immersive-page.is-chrome-collapsed .immersive-story__hud-hint {
   visibility: hidden;
-}
-
-/* Needle’s Eye: toolbar replaces side chevrons */
-.immersive-page[data-slug="under-the-needles-eye"] .immersive-story__nav {
-  display: none;
 }
 
 .immersive-story__hud-hint {

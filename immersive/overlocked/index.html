@@ -19,7 +19,7 @@
       <div class="immersive-inner" id="immersive-inner">
         <div class="immersive-flyer" data-flyer-root>
           <div class="immersive-flyer__viewport" role="application"
-            aria-label="Archival scan on a mat: drag to pan. Hold Alt and drag to rotate freely. R resets rotation. Shift R snaps to nearest right angle. Alt+scroll or Alt plus minus resize scan. Magnifier follows the pointer. Shift+scroll lens size. Brackets resize lens. F flips to the other side of the sheet at the same position and zoom.">
+            aria-label="Archival scan on a mat. Touch: one finger moves the magnifier; two fingers drag to pan; pinch to zoom the scan; twist two fingers to rotate. Change lens size with the toolbar. Flip the sheet with the toolbar. Keyboard and mouse: drag to pan; Alt and drag to rotate; R resets rotation, Shift R snaps to a right angle; Alt and scroll or plus minus to zoom the scan; Shift and scroll or bracket keys for lens size; F flips to the other side at the same position and zoom.">
             <div class="immersive-flyer__loupe" hidden>
               <div class="immersive-flyer__loupe-disk">
                 <div class="immersive-flyer__loupe-clip">
@@ -95,8 +95,10 @@
                     </svg>
                   </button>
                 </div>
-                <p class="immersive-flyer__hud-hint">Drag: pan · Alt+drag: rotate · Alt+scroll: scan size ·
-                  Shift+scroll: lens size · F: flip sheet</p>
+                <p class="immersive-flyer__hud-hint immersive-flyer__hud-hint--desktop">Drag: pan · Alt+drag: rotate ·
+                  Alt+scroll: scan size · Shift+scroll: lens size · F: flip sheet</p>
+                <p class="immersive-flyer__hud-hint immersive-flyer__hud-hint--touch">1 finger: magnifier · 2 fingers:
+                  pan · Pinch: zoom · Twist: rotate · Lens: toolbar · Flip: toolbar</p>
               </div>
             </div>
             <div class="immersive-flyer__stage">
@@ -109,6 +111,7 @@
               </div>
             </div>
           </div>
+          <script src="../../js/overlocked-flyer-urls.js"></script>
           <script src="../../js/overlocked-flyer-boot.js"></script>
         </div>
       </div>
@@ -141,7 +144,7 @@
         <div class="immersive-inner" id="immersive-inner-inset">
           <div class="immersive-flyer" data-flyer-root>
             <div class="immersive-flyer__viewport" role="application"
-              aria-label="Archival scan on a mat: drag to pan. Hold Alt and drag to rotate freely. R resets rotation. Shift R snaps to nearest right angle. Alt+scroll or Alt plus minus resize scan. Magnifier follows the pointer. Shift+scroll lens size. Brackets resize lens. F flips to the other side of the sheet at the same position and zoom.">
+              aria-label="Archival scan on a mat. Touch: one finger moves the magnifier; two fingers drag to pan; pinch to zoom the scan; twist two fingers to rotate. Change lens size with the toolbar. Flip the sheet with the toolbar. Keyboard and mouse: drag to pan; Alt and drag to rotate; R resets rotation, Shift R snaps to a right angle; Alt and scroll or plus minus to zoom the scan; Shift and scroll or bracket keys for lens size; F flips to the other side at the same position and zoom.">
               <div class="immersive-flyer__loupe" hidden>
                 <div class="immersive-flyer__loupe-disk">
                   <div class="immersive-flyer__loupe-clip">
@@ -217,8 +220,10 @@
                     </svg>
                   </button>
                 </div>
-                <p class="immersive-flyer__hud-hint">Drag: pan · Alt+drag: rotate · Alt+scroll: scan size ·
-                  Shift+scroll: lens size · F: flip sheet</p>
+                <p class="immersive-flyer__hud-hint immersive-flyer__hud-hint--desktop">Drag: pan · Alt+drag: rotate ·
+                  Alt+scroll: scan size · Shift+scroll: lens size · F: flip sheet</p>
+                <p class="immersive-flyer__hud-hint immersive-flyer__hud-hint--touch">1 finger: magnifier · 2 fingers:
+                  pan · Pinch: zoom · Twist: rotate · Lens: toolbar · Flip: toolbar</p>
                 </div>
               </div>
               <div class="immersive-flyer__stage">
@@ -231,6 +236,7 @@
                 </div>
               </div>
             </div>
+            <script src="../../js/overlocked-flyer-urls.js"></script>
             <script src="../../js/overlocked-flyer-boot.js"></script>
           </div>
         </div>
