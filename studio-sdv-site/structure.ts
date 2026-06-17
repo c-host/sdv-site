@@ -1,17 +1,10 @@
 import type {StructureResolver} from 'sanity/structure'
 import {HOME_PAGE_DOC_ID} from './schemaTypes/homePageType'
-import {IMMERSIVE_LAW_DOC_ID} from './schemaTypes/immersiveLawType'
-import {IMMERSIVE_NEEDLE_DOC_ID} from './schemaTypes/immersiveNeedleType'
+import {SITE_MATERIALS_DOC_ID} from './schemaTypes/materialTypes'
 import {SITE_TYPOGRAPHY_DOC_ID} from './schemaTypes/typographyTypes'
+import {ImageAssetMinimalView} from './components/ImageAssetMinimalView'
 
 const INFO_DOC_ID = 'infoPage'
-const CAPTIONS_DOC_ID = 'captionsConfig'
-
-const FIXED_PROJECTS = [
-  {id: 'project-the-spontaneous-dance-falls', title: 'The Spontaneous Dance Falls'},
-  {id: 'project-under-the-needles-eye', title: "Under the Needle's Eye"},
-  {id: 'project-overlocked', title: 'Overlocked'},
-]
 
 export const structure: StructureResolver = (S) =>
   S.list()
@@ -22,39 +15,33 @@ export const structure: StructureResolver = (S) =>
         .id('home-page-item')
         .child(S.document().schemaType('homePage').documentId(HOME_PAGE_DOC_ID)),
       S.listItem()
-        .title('Immersive — Dance Falls (law)')
-        .id('immersive-law-item')
-        .child(S.document().schemaType('immersiveLaw').documentId(IMMERSIVE_LAW_DOC_ID)),
-      S.listItem()
-        .title('Immersive — Needle (slider)')
-        .id('immersive-needle-item')
-        .child(S.document().schemaType('immersiveNeedle').documentId(IMMERSIVE_NEEDLE_DOC_ID)),
-      S.listItem()
-        .title('Info page')
+        .title('Bio panel')
         .id('info-page-item')
         .child(S.document().schemaType('info').documentId(INFO_DOC_ID)),
+      S.documentTypeListItem('project').title('Projects'),
+      S.divider(),
       S.listItem()
-        .title('Captions')
-        .id('captions-item')
-        .child(S.document().schemaType('captions').documentId(CAPTIONS_DOC_ID)),
+        .title('Materials')
+        .id('materials-item')
+        .child(S.document().schemaType('siteMaterials').documentId(SITE_MATERIALS_DOC_ID)),
+      S.divider(),
       S.listItem()
         .title('Typography')
         .id('typography-item')
         .child(S.document().schemaType('siteTypography').documentId(SITE_TYPOGRAPHY_DOC_ID)),
-      S.documentTypeListItem('fontUpload').title('Font files'),
+      S.documentTypeListItem('fontUpload').title('Fonts'),
+      S.divider(),
       S.listItem()
-        .title('Projects')
-        .id('projects-item')
+        .title('Image library (uploaded)')
+        .id('image-library-item')
         .child(
-          S.list()
-            .title('Projects')
-            .items(
-              FIXED_PROJECTS.map((project) =>
-                S.listItem()
-                  .id(project.id)
-                  .title(project.title)
-                  .child(S.document().schemaType('project').documentId(project.id)),
-              ),
+          S.documentTypeList('sanity.imageAsset')
+            .title('Image library (uploaded)')
+            .child((documentId) =>
+              S.component(ImageAssetMinimalView)
+                .id('image-asset-minimal-view')
+                .title('Image')
+                .options({documentId, documentType: 'sanity.imageAsset'}),
             ),
         ),
     ])

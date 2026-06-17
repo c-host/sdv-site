@@ -1,6 +1,6 @@
 import {defineConfig} from 'sanity'
+import './studio-portable-text.css'
 import {structureTool} from 'sanity/structure'
-import {visionTool} from '@sanity/vision'
 import {
   defineDocuments,
   defineLocations,
@@ -8,19 +8,23 @@ import {
   type PresentationPluginOptions,
 } from 'sanity/presentation'
 import {HOME_PAGE_DOC_ID} from './schemaTypes/homePageType'
-import {IMMERSIVE_LAW_DOC_ID} from './schemaTypes/immersiveLawType'
-import {IMMERSIVE_NEEDLE_DOC_ID} from './schemaTypes/immersiveNeedleType'
 import {SITE_TYPOGRAPHY_DOC_ID} from './schemaTypes/typographyTypes'
+import {ProjectDeleteAction} from './actions/projectDeleteAction'
 import {schemaTypes} from './schemaTypes'
 import {structure} from './structure'
 
-/** Strip drafts. prefix so location resolvers match both published and draft panes. */
+/** Strip drafts. prefix for location resolvers (published and draft panes). */
 function publishedId(id: string | undefined) {
   return id?.replace(/^drafts\./, '') || ''
 }
 
-const ALLOWED_NEW_TEMPLATES = new Set(['sanity.imageAsset', 'sanity.fileAsset', 'fontUpload'])
-/** Local static servers and GitHub Pages previews; add your real deploy origin via env. */
+const ALLOWED_NEW_TEMPLATES = new Set([
+  'sanity.imageAsset',
+  'sanity.fileAsset',
+  'fontUpload',
+  'project',
+])
+/** Preview iframe URL and allowed site origins. Defaults suit local dev; override via env when deploying Studio. */
 const FALLBACK_ORIGINS = [
   'http://127.0.0.1:3000',
   'http://localhost:3000',
@@ -33,57 +37,50 @@ const PREVIEW_ORIGINS = String(process.env.SANITY_STUDIO_PREVIEW_ORIGINS || '')
   .filter(Boolean)
 const PREVIEW_ORIGIN =
   process.env.SANITY_STUDIO_PREVIEW_ORIGIN || PREVIEW_ORIGINS[0] || FALLBACK_ORIGINS[0]
-const PREVIEW_TOKEN = process.env.SANITY_STUDIO_PREVIEW_DRAFT_TOKEN || ''
 const ALLOW_ORIGINS = Array.from(
   new Set(PREVIEW_ORIGINS.concat(FALLBACK_ORIGINS).concat(['http://127.0.0.1:*', 'http://localhost:*'])),
 )
+
+/** Typography preview locations for Presentation "used on N pages". */
+function typographyPreviewLocations() {
+  const slugs = [
+    'overlocked',
+    'under-the-needle-s-eye',
+    'the-spontaneous-dance-falls',
+  ]
+  return [
+    {title: 'Home', href: '/'},
+    ...slugs.flatMap((slug) => [
+      {title: slug, href: `/project/${slug}/`},
+      {title: `${slug} — immersive`, href: `/immersive/${slug}/`},
+    ]),
+  ]
+}
 
 const presentationResolve: PresentationPluginOptions['resolve'] = {
   mainDocuments: defineDocuments([
     {
       route: '/',
-      filter: `(_type == "homePage" && (_id == "${HOME_PAGE_DOC_ID}" || _id == "drafts.${HOME_PAGE_DOC_ID}"))`,
+      filter: `(_type == "homePage" && (_id == "${HOME_PAGE_DOC_ID}" || _id == "drafts.${HOME_PAGE_DOC_ID}")) || (_type == "info" && (_id == "infoPage" || _id == "drafts.infoPage"))`,
     },
     {
-      route: '/info',
-      filter: `(_type == "info" && (_id == "infoPage" || _id == "drafts.infoPage"))`,
+      route: '/immersive/:slug',
+      filter: ({params}) => `_type == "project" && coalesce(slug.current, slug) == $slug`,
+      params: ({params}) => ({slug: params.slug || ''}),
     },
     {
-      route: '/info/',
-      filter: `(_type == "info" && (_id == "infoPage" || _id == "drafts.infoPage"))`,
-    },
-    {
-      route: '/immersive/the-spontaneous-dance-falls',
-      filter: `(_type == "immersiveLaw" && (_id == "${IMMERSIVE_LAW_DOC_ID}" || _id == "drafts.${IMMERSIVE_LAW_DOC_ID}"))`,
-    },
-    {
-      route: '/immersive/the-spontaneous-dance-falls/',
-      filter: `(_type == "immersiveLaw" && (_id == "${IMMERSIVE_LAW_DOC_ID}" || _id == "drafts.${IMMERSIVE_LAW_DOC_ID}"))`,
-    },
-    {
-      route: '/immersive/under-the-needles-eye',
-      filter: `(_type == "immersiveNeedle" && (_id == "${IMMERSIVE_NEEDLE_DOC_ID}" || _id == "drafts.${IMMERSIVE_NEEDLE_DOC_ID}"))`,
-    },
-    {
-      route: '/immersive/under-the-needles-eye/',
-      filter: `(_type == "immersiveNeedle" && (_id == "${IMMERSIVE_NEEDLE_DOC_ID}" || _id == "drafts.${IMMERSIVE_NEEDLE_DOC_ID}"))`,
-    },
-    {
-      route: '/immersive/overlocked',
-      filter: `_type == "project" && slug == "overlocked"`,
-    },
-    {
-      route: '/immersive/overlocked/',
-      filter: `_type == "project" && slug == "overlocked"`,
+      route: '/immersive/:slug/',
+      filter: ({params}) => `_type == "project" && coalesce(slug.current, slug) == $slug`,
+      params: ({params}) => ({slug: params.slug || ''}),
     },
     {
       route: '/project/:slug',
-      filter: ({params}) => `_type == "project" && slug == $slug`,
+      filter: ({params}) => `_type == "project" && coalesce(slug.current, slug) == $slug`,
       params: ({params}) => ({slug: params.slug || ''}),
     },
     {
       route: '/project/:slug/',
-      filter: ({params}) => `_type == "project" && slug == $slug`,
+      filter: ({params}) => `_type == "project" && coalesce(slug.current, slug) == $slug`,
       params: ({params}) => ({slug: params.slug || ''}),
     },
   ]),
@@ -94,7 +91,7 @@ const presentationResolve: PresentationPluginOptions['resolve'] = {
       },
       resolve: (doc) => ({
         locations:
-          publishedId(doc?._id) === 'infoPage' ? [{title: 'Info page', href: '/info/'}] : [],
+          publishedId(doc?._id) === 'infoPage' ? [{title: 'Home (info panel)', href: '/'}] : [],
       }),
     }),
     project: defineLocations({
@@ -103,9 +100,11 @@ const presentationResolve: PresentationPluginOptions['resolve'] = {
         slug: 'slug',
       },
       resolve: (doc) => {
-        const slug = doc?.slug
+        const slug =
+          typeof doc?.slug === 'object' && doc?.slug?.current
+            ? String(doc.slug.current)
+            : String(doc?.slug || '')
         if (!slug) return {locations: []}
-        // `title` comes from select mapping to `header_title`
         return {
           locations: [
             {title: doc?.title || slug, href: `/project/${slug}/`},
@@ -114,17 +113,6 @@ const presentationResolve: PresentationPluginOptions['resolve'] = {
         }
       },
     }),
-    captions: defineLocations({
-      select: {
-        _id: '_id',
-      },
-      resolve: (doc) => ({
-        locations:
-          publishedId(doc?._id) === 'captionsConfig'
-            ? [{title: "Under the Needle's Eye immersive", href: '/immersive/under-the-needles-eye/'}]
-            : [],
-      }),
-    }),
     homePage: defineLocations({
       select: {_id: '_id'},
       resolve: (doc) => ({
@@ -132,36 +120,11 @@ const presentationResolve: PresentationPluginOptions['resolve'] = {
           publishedId(doc?._id) === HOME_PAGE_DOC_ID ? [{title: 'Home', href: '/'}] : [],
       }),
     }),
-    immersiveLaw: defineLocations({
-      select: {_id: '_id'},
-      resolve: (doc) => ({
-        locations:
-          publishedId(doc?._id) === IMMERSIVE_LAW_DOC_ID
-            ? [{title: 'Dance Falls immersive', href: '/immersive/the-spontaneous-dance-falls/'}]
-            : [],
-      }),
-    }),
-    immersiveNeedle: defineLocations({
-      select: {_id: '_id'},
-      resolve: (doc) => ({
-        locations:
-          publishedId(doc?._id) === IMMERSIVE_NEEDLE_DOC_ID
-            ? [{title: 'Needle immersive', href: '/immersive/under-the-needles-eye/'}]
-            : [],
-      }),
-    }),
     siteTypography: defineLocations({
       select: {_id: '_id'},
       resolve: (doc) => ({
         locations:
-          publishedId(doc?._id) === SITE_TYPOGRAPHY_DOC_ID
-            ? [
-                {title: 'Home', href: '/'},
-                {title: 'Info', href: '/info/'},
-                {title: 'Dance Falls immersive', href: '/immersive/the-spontaneous-dance-falls/'},
-                {title: 'Needle immersive', href: '/immersive/under-the-needles-eye/'},
-              ]
-            : [],
+          publishedId(doc?._id) === SITE_TYPOGRAPHY_DOC_ID ? typographyPreviewLocations() : [],
       }),
     }),
   },
@@ -170,9 +133,6 @@ const presentationResolve: PresentationPluginOptions['resolve'] = {
 function buildInitialPreviewUrl() {
   const url = new URL('/', PREVIEW_ORIGIN)
   url.searchParams.set('sdvPreview', '1')
-  if (PREVIEW_TOKEN) {
-    url.searchParams.set('sdvDraftToken', PREVIEW_TOKEN)
-  }
   return url.toString()
 }
 
@@ -192,13 +152,28 @@ export default defineConfig({
       allowOrigins: ALLOW_ORIGINS,
       resolve: presentationResolve,
     }),
-    visionTool(),
   ],
+
+  releases: {
+    enabled: false,
+  },
+
+  scheduledDrafts: {
+    enabled: false,
+  },
 
   document: {
     newDocumentOptions: (prev, context) => {
       if (context.creationContext.type === 'global') {
         return prev.filter((templateItem) => ALLOWED_NEW_TEMPLATES.has(templateItem.templateId))
+      }
+      return prev
+    },
+    actions: (prev, {schemaType}) => {
+      if (schemaType === 'project') {
+        return prev.map((original) =>
+          original.action === 'delete' ? ProjectDeleteAction : original,
+        )
       }
       return prev
     },

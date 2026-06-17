@@ -1,0 +1,81 @@
+name: Backup Sanity dataset
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_assets:
+        description: 'Include assets (images/files) in the backup'
+        required: false
+        default: 'false'
+  schedule:
+    # Nightly doc-only backup
+    - cron: '25 2 * * *'
+    # Weekly full backup (includes assets)
+    - cron: '45 3 * * 0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sanity-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Resolve backup options
+        id: opts
+        run: |
+          set -euo pipefail
+          INCLUDE_ASSETS="false"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            INCLUDE_ASSETS="${{ inputs.include_assets }}"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "${{ github.event.schedule }}" = "45 3 * * 0" ]; then
+              INCLUDE_ASSETS="true"
+            fi
+          fi
+          echo "include_assets=$INCLUDE_ASSETS" >> "$GITHUB_OUTPUT"
+
+      - name: Export dataset
+        working-directory: studio-sdv-site
+        run: |
+          set -euo pipefail
+          if [ -z "${SANITY_AUTH_TOKEN:-}" ]; then
+            echo "Missing SANITY_AUTH_TOKEN secret."
+            exit 1
+          fi
+
+          mkdir -p ../backups
+          STAMP="$(date -u +'%Y%m%d-%H%M%S')"
+          DATASET="production"
+          OUT="../backups/sanity-${DATASET}-${STAMP}.tar.gz"
+
+          ARGS=(sanity dataset export "$DATASET" "$OUT")
+          if [ "${{ steps.opts.outputs.include_assets }}" = "true" ]; then
+            ARGS+=(--assets)
+          fi
+
+          echo "Running: npx --yes sanity@latest ${ARGS[*]}"
+          npx --yes sanity@latest "${ARGS[@]}"
+
+          echo "backup_file=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanity-backup-${{ github.run_id }}
+          path: backups/*.tar.gz
+          if-no-files-found: error
+          retention-days: 30

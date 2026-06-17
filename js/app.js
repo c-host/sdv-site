@@ -1,7 +1,14 @@
 /**
- * Page interactions: home selection, immersive law/slider, abstraction captions, project split controls.
- * Depends on sdv-shared.js (window.SDV). content-loader.js sets globals and dispatches sdv:home,
- * sdv:materials, sdv:captions, sdv:immersive-ready.
+ * Page interactions:
+ * - Home: materials filter + INFO slide panel toggle
+ * - Project: split controls + publication-tab magnifier gating + image lightbox
+ * - Immersive: flyer (loupe + pan/zoom) with prev/next images from SDV_FLYER_IMAGES
+ *
+ * Depends on sdv-shared.js (window.SDV). content-loader.js dispatches:
+ * - sdv:materials
+ * - sdv:immersive-ready (detail.slug)
+ * - sdv:project-tab (detail.isPublication)
+ * - sdv:lightbox-open (detail.urls, detail.index)
  */
 (function () {
   'use strict';
@@ -15,10 +22,7 @@
   var assetUrl = SDV.assetUrl;
   var withPreviewQuery = SDV.withPreviewQuery;
   var materialIconSvg = SDV.materialIconSvg;
-
-  var SLUG_DANCE = 'the-spontaneous-dance-falls';
-  var SLUG_NEEDLE = 'under-the-needles-eye';
-  var SLUG_OVER = 'overlocked';
+  var immersiveImagePreviewUrl = SDV.immersiveImagePreviewUrl;
 
   function immersiveSlugFromPath() {
     var p = window.location.pathname || '';
@@ -26,316 +30,589 @@
     return m && m[1] ? String(m[1]) : '';
   }
 
-  var OVERLAY_VIDEO_BY_SLUG = {
-    'the-spontaneous-dance-falls': 'images/captions/dance_falls_film_loop.mp4',
-    'under-the-needles-eye': 'images/captions/needle_film_loop.mp4',
-    'overlocked': 'images/captions/overlocked_film_loop.mp4',
-  };
-  var OVERLAY_IMAGE_BY_SLUG = {
-    'the-spontaneous-dance-falls': 'images/home/fall.jpg',
-    'under-the-needles-eye': 'images/home/needle.jpg',
-    'overlocked': 'images/home/overlocked.jpg',
-  };
+  var currentImmersiveSlug = '';
 
-  /** Fallback when Sanity captions document is unavailable; `project` matches caption schema (slug string). */
-  var CAPTIONS_FALLBACK = [
-    { project: SLUG_DANCE, text: 'Project 1 Caption [TBD].' },
-    { project: SLUG_OVER, text: 'There were opportunities back then, it was the land of opportunities.' },
-    { project: SLUG_OVER, text: 'People work hard for their money here.' },
-    { project: SLUG_OVER, text: 'We have to have a whip, the clock is our whip.' },
-    { project: SLUG_NEEDLE, text: 'The witches spun with the intention of remembering.' },
-    { project: SLUG_NEEDLE, text: 'An I for an eye.' },
-  ];
+  /* --- Home --- */
 
-  function getOverlayVideoUrl(relativePath) {
-    try {
-      return new URL(relativePath, window.location.href).href;
-    } catch (e) {
-      return relativePath;
-    }
+  function getHomeMaterialsData() {
+    var all =
+      window.SDV_ALL_MATERIALS && Array.isArray(window.SDV_ALL_MATERIALS)
+        ? window.SDV_ALL_MATERIALS
+        : [];
+    var bySlug =
+      window.SDV_PROJECT_MATERIALS && typeof window.SDV_PROJECT_MATERIALS === 'object'
+        ? window.SDV_PROJECT_MATERIALS
+        : {};
+    return { all: all, bySlug: bySlug };
   }
 
-  var currentSlug = '';
-  /** Default home crosshair / hero frame (matches css :root --line). */
-  var HOME_LINE_DEFAULT = '#7e7777';
-  /** Default project line colors on home page (unless overridden by CMS) . */
-  var HOME_LINE_BY_CONTEXT = {
-    'the-spontaneous-dance-falls': '#3f3739',
-    'under-the-needles-eye': '#713b38',
-    overlocked: '#1851a3',
-  };
-  var captionIndex = 0;
-  var captionInterval = null;
-  var currentCaptionPool = [];
-  var currentProject2Slide = 0;
-  var lawOpenState = [];
-
-  function initImmersiveInteractions(slug) {
-    if (slug === SLUG_DANCE) {
-      initProject1Immersive();
-    } else if (slug === SLUG_NEEDLE) {
-      initProject2Immersive();
-    } else if (slug === SLUG_OVER) {
-      initOverlockedFlyer();
-    }
+  function isHomeDesktop() {
+    return !!(window.matchMedia && window.matchMedia('(min-width: 600px)').matches);
   }
 
-  function initProject1Immersive() {
-    var main = document.getElementById('immersive-inner');
-    var inset = document.getElementById('immersive-inner-inset');
-    if (!main) return;
+  function ensureProjectIconHosts() {
+    document.querySelectorAll('.home-project').forEach(function (btn) {
+      if (!btn.querySelector('.home-project-label')) {
+        var labelText = btn.textContent || '';
+        btn.textContent = '';
+        var labelSpan = document.createElement('span');
+        labelSpan.className = 'home-project-label';
+        labelSpan.textContent = labelText;
+        btn.appendChild(labelSpan);
+      }
+      if (btn.querySelector('.home-project-material-icons')) return;
+      var wrap = document.createElement('span');
+      wrap.className = 'home-project-material-icons';
+      wrap.setAttribute('aria-hidden', 'true');
+      btn.appendChild(wrap);
+    });
+  }
 
-    var mainLayout = main.querySelector('.law-layout');
-    if (!mainLayout) return;
-    var mainFragments = mainLayout.querySelectorAll('.law-fragment');
-    if (!mainFragments.length) return;
+  function renderHomeMaterialIcons(selectedKeys) {
+    ensureProjectIconHosts();
+    var data = getHomeMaterialsData();
+    var selected = new Set(selectedKeys || []);
+    var order = {};
+    (data.all || []).forEach(function (m, i) {
+      if (m && m.key) order[m.key] = i;
+    });
 
-    lawOpenState = [];
-    for (var i = 0; i < mainFragments.length; i++) lawOpenState[i] = null;
+    document.querySelectorAll('.home-project').forEach(function (btn) {
+      var slug = btn.getAttribute('data-slug') || '';
+      var host = btn.querySelector('.home-project-material-icons');
+      if (!host) return;
 
-    function bindFragmentClicks(root) {
-      if (!root) return;
-      var layout = root.querySelector('.law-layout');
-      if (!layout) return;
-      var buttons = layout.querySelectorAll('.law-fragment');
-      buttons.forEach(function (btn, index) {
-        btn.addEventListener('click', function () {
-          var src = btn.getAttribute('data-image');
-          if (!src) return;
-          lawOpenState[index] = (lawOpenState[index] === src) ? null : src;
-          syncLawState();
-        });
+      if (!selected.size || !isHomeDesktop()) {
+        host.innerHTML = '';
+        return;
+      }
+
+      var mats =
+        data.bySlug[slug] && Array.isArray(data.bySlug[slug].materials)
+          ? data.bySlug[slug].materials
+          : [];
+      var html = '';
+      mats
+        .slice()
+        .sort(function (a, b) {
+          var ia = a && a.key && order[a.key] != null ? order[a.key] : 1e9;
+          var ib = b && b.key && order[b.key] != null ? order[b.key] : 1e9;
+          return ia - ib;
+        })
+        .forEach(function (m) {
+        if (!m || !m.key) return;
+        if (!selected.has(m.key)) return;
+        html += materialIconSvg(m.key);
       });
-    }
-
-    bindFragmentClicks(main);
-    bindFragmentClicks(inset);
-
-    syncLawState();
-
-    initLawScroll(mainLayout);
-    if (inset) {
-      var insetLayout = inset.querySelector('.law-layout');
-      if (insetLayout) initLawScroll(insetLayout);
-    }
+      host.innerHTML = html;
+    });
   }
 
-  function getProject2Roots() {
-    var main = document.getElementById('immersive-inner');
-    var inset = document.getElementById('immersive-inner-inset');
-    var roots = [];
-    if (main) {
-      var s = main.querySelector('.immersive-story');
-      if (s) roots.push(s);
-    }
-    if (inset) {
-      var t = inset.querySelector('.immersive-story');
-      if (t) roots.push(t);
-    }
-    return roots;
-  }
+  function renderHomeMaterialToggle() {
+    var host = document.getElementById('home-material-filter');
+    if (!host) return;
 
-  function getProject2Images(root) {
-    var wrap = root.querySelector('.immersive-story__image-wrap');
-    if (!wrap) return null;
-    var imgA = root.querySelector('.immersive-story__image--a');
-    var imgB = root.querySelector('.immersive-story__image--b');
-    if (!imgA || !imgB) return null;
-    var frontKey = wrap.dataset.storyFront || 'a';
-    return {
-      wrap: wrap,
-      imgA: imgA,
-      imgB: imgB,
-      front: frontKey === 'b' ? imgB : imgA,
-      back: frontKey === 'b' ? imgA : imgB,
-    };
-  }
-
-  function setProject2Front(root, which) {
-    var imgs = getProject2Images(root);
-    if (!imgs) return;
-    imgs.wrap.dataset.storyFront = which;
-    imgs.imgA.classList.toggle('is-front', which === 'a');
-    imgs.imgB.classList.toggle('is-front', which === 'b');
-  }
-
-  function getSliderSlides() {
-    var g = window.SDV_IMMERSIVE_SLIDER;
-    if (g && Array.isArray(g.slides) && g.slides.length) return g.slides;
-    return [];
-  }
-
-  function renderProject2Slide(index, options) {
-    var slides = getSliderSlides();
-    if (!slides.length) return;
-    var total = slides.length;
-    var nextIndex = index;
-    if (nextIndex < 0) nextIndex = total - 1;
-    if (nextIndex >= total) nextIndex = 0;
-    currentProject2Slide = nextIndex;
-
-    var roots = getProject2Roots();
-    if (!roots.length) return;
-
-    var immediate = options && options.immediate;
-    var slide = slides[currentProject2Slide] || {};
-    var newSrc = slide.src || '';
-    var newAlt = 'Under the Needle\u2019s Eye, frame ' + (currentProject2Slide + 1);
-    var newHtml = slide.captionHtml || '';
-
-    function updateTextAll() {
-      roots.forEach(function (r) {
-        var te = r.querySelector('.immersive-story__text');
-        if (te) te.innerHTML = newHtml;
-      });
-    }
-
-    if (immediate) {
-      roots.forEach(function (root) {
-        var imgs = getProject2Images(root);
-        if (!imgs) return;
-        imgs.front.src = newSrc;
-        imgs.front.alt = newAlt;
-        imgs.front.classList.add('is-front');
-        imgs.back.classList.remove('is-front');
-        imgs.back.src = '';
-        imgs.wrap.dataset.storyFront = imgs.front === imgs.imgA ? 'a' : 'b';
-      });
-      updateTextAll();
+    var data = getHomeMaterialsData();
+    if (!data.all.length) {
+      host.innerHTML = '';
       return;
     }
 
-    roots.forEach(function (root) {
-      var imgs = getProject2Images(root);
-      if (!imgs) return;
-
-      var back = imgs.back;
-      back.src = newSrc;
-      back.alt = newAlt;
-
-      function doTransition() {
-        imgs.front.classList.add('is-transitioning');
-        setTimeout(function () {
-          imgs.front.classList.remove('is-transitioning');
-          var newFront = imgs.front === imgs.imgA ? 'b' : 'a';
-          setProject2Front(root, newFront);
-          updateTextAll();
-        }, 700);
-      }
-
-      if (back.complete) {
-        doTransition();
-      } else {
-        back.addEventListener('load', function onLoad() {
-          back.removeEventListener('load', onLoad);
-          doTransition();
+    var storageKey = 'sdv.homeMaterials.selected';
+    var selected = new Set();
+    try {
+      var raw = localStorage.getItem(storageKey);
+      var parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) {
+        parsed.forEach(function (k) {
+          if (k) selected.add(String(k));
         });
       }
+    } catch (e) {}
+
+    var allowed = new Set(
+      data.all.map(function (m) {
+        return m.key;
+      }),
+    );
+    Array.from(selected).forEach(function (k) {
+      if (!allowed.has(k)) selected.delete(k);
     });
+
+    function labelForKey(key) {
+      var hit = data.all.find(function (m) {
+        return m.key === key;
+      });
+      return hit ? hit.label : key;
+    }
+
+    function selectedSummary() {
+      if (!selected.size) return 'None selected';
+      return data.all
+        .filter(function (m) {
+          return selected.has(m.key);
+        })
+        .map(function (m) {
+          return m.label;
+        })
+        .join(', ');
+    }
+
+    function rerender() {
+      renderHomeMaterialIcons(Array.from(selected));
+      if (host.dataset.bound === '1') {
+        host.querySelectorAll('.home-material-btn').forEach(function (btn) {
+          btn.classList.toggle('is-on', selected.has(btn.dataset.materialKey));
+          btn.setAttribute(
+            'aria-pressed',
+            selected.has(btn.dataset.materialKey) ? 'true' : 'false',
+          );
+        });
+        var status = host.querySelector('.home-material-status');
+        if (status) status.textContent = selectedSummary();
+      }
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(Array.from(selected)));
+      } catch (e) {}
+    }
+
+    if (host.dataset.bound === '1') {
+      rerender();
+      return;
+    }
+    host.dataset.bound = '1';
+
+    var html =
+      '' +
+      '<div class="home-material-meta">' +
+      '  <div class="home-material-title">Materials</div>' +
+      '  <div class="home-material-status" aria-live="polite"></div>' +
+      '</div>' +
+      '<div class="home-material-row" role="group" aria-label="Filter by material">';
+    data.all.forEach(function (m) {
+      html +=
+        '<button type="button" class="home-material-btn" data-material-key="' +
+        m.key +
+        '" aria-pressed="false" title="' +
+        String(m.label).replace(/"/g, '&quot;') +
+        '" aria-label="' +
+        String(m.label).replace(/"/g, '&quot;') +
+        '">' +
+        materialIconSvg(m.key) +
+        '</button>';
+    });
+    html += '</div>';
+    host.innerHTML = html;
+
+    host.addEventListener('mouseover', function (e) {
+      var t = e.target;
+      var btn = t && t.closest ? t.closest('.home-material-btn') : null;
+      if (!btn) return;
+      var key = btn.dataset.materialKey;
+      if (!key) return;
+      var status = host.querySelector('.home-material-status');
+      if (status)
+        status.textContent = (selected.has(key) ? 'Selected: ' : 'Filter: ') + labelForKey(key);
+    });
+
+    host.addEventListener('mouseleave', function () {
+      var status = host.querySelector('.home-material-status');
+      if (status) status.textContent = selectedSummary();
+    });
+
+    host.addEventListener('focusin', function (e) {
+      var t = e.target;
+      var btn = t && t.closest ? t.closest('.home-material-btn') : null;
+      if (!btn) return;
+      var key = btn.dataset.materialKey;
+      if (!key) return;
+      var status = host.querySelector('.home-material-status');
+      if (status)
+        status.textContent = (selected.has(key) ? 'Selected: ' : 'Filter: ') + labelForKey(key);
+    });
+
+    host.addEventListener('focusout', function () {
+      var status = host.querySelector('.home-material-status');
+      if (status) status.textContent = selectedSummary();
+    });
+
+    host.addEventListener('click', function (e) {
+      var t = e.target;
+      var btn = t && t.closest ? t.closest('.home-material-btn') : null;
+      if (!btn) return;
+      var key = btn.dataset.materialKey;
+      if (!key) return;
+      if (selected.has(key)) selected.delete(key);
+      else selected.add(key);
+      rerender();
+    });
+
+    rerender();
   }
 
-  function goProject2Prev() {
-    renderProject2Slide(currentProject2Slide - 1);
+  function bindHomeIconsViewportSync() {
+    if (document.documentElement.dataset.homeIconsMqBound === '1') return;
+    document.documentElement.dataset.homeIconsMqBound = '1';
+    if (!window.matchMedia) return;
+    var mq = window.matchMedia('(min-width: 600px)');
+    function onChange() {
+      renderHomeMaterialToggle();
+    }
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange);
+    } else if (typeof mq.addListener === 'function') {
+      mq.addListener(onChange);
+    }
   }
 
-  function goProject2Next() {
-    renderProject2Slide(currentProject2Slide + 1);
+  function initHomeInfoToggle() {
+    var view = document.querySelector('.view--home');
+    var btn = document.getElementById('home-info-btn');
+    var panel = document.getElementById('home-info-panel');
+    if (!view || !btn || !panel) return;
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+
+    // Once info opens, project names stay hidden and the SDV mark remains (desktop).
+    var INFO_PANEL_MS = 360;
+    if (view.dataset.infoShelved === '1') {
+      view.classList.add('is-info-shelved', 'is-info-sdv-visible');
+    }
+
+    function setOpen(next) {
+      var open = !!next;
+      view.classList.toggle('is-info-open', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+      btn.textContent = open ? 'CLOSE' : 'INFO';
+
+      if (open && view.dataset.infoShelved !== '1') {
+        view.dataset.infoShelved = '1';
+        window.setTimeout(function () {
+          view.classList.add('is-info-shelved', 'is-info-sdv-visible');
+        }, INFO_PANEL_MS);
+      }
+    }
+
+    btn.addEventListener('click', function () {
+      var open = view.classList.contains('is-info-open');
+      setOpen(!open);
+    });
+
+    setOpen(false);
   }
 
-  function bindProject2ImageWrapSwipe(wrap) {
-    if (!wrap || wrap.dataset.storySwipeBound === '1') return;
-    wrap.dataset.storySwipeBound = '1';
-    var startX = 0;
-    var startY = 0;
-    var swipeMin = 52;
-    wrap.addEventListener(
+  /* --- Project: publication tab --- */
+
+  function initProjectPublicationGate() {
+    var view = document.querySelector('.view--project');
+    if (!view) return;
+    if (view.dataset.pubGateBound === '1') return;
+    view.dataset.pubGateBound = '1';
+
+    function syncFromCurrentTab() {
+      /* Timeline may render after this listener is registered. */
+      var current = document.querySelector('.project-timeline__item[aria-current="true"]');
+      var isPub = !!(current && current.dataset && current.dataset.isPublication === 'true');
+      view.classList.toggle('is-publication-tab', isPub);
+    }
+
+    window.addEventListener('sdv:project-tab', function (ev) {
+      var isPub = !!(ev && ev.detail && ev.detail.isPublication);
+      view.classList.toggle('is-publication-tab', isPub);
+    });
+
+    syncFromCurrentTab();
+    for (var i = 0; i < 20; i++) {
+      setTimeout(syncFromCurrentTab, i * 50);
+    }
+  }
+
+  /* --- Project: image lightbox --- */
+
+  var lightboxState = {
+    open: false,
+    urls: [],
+    index: 0,
+    touchX: 0,
+    touchY: 0,
+  };
+
+  function ensureLightbox() {
+    if (document.getElementById('image-lightbox')) return;
+    var el = document.createElement('div');
+    el.className = 'image-lightbox';
+    el.id = 'image-lightbox';
+    el.setAttribute('hidden', '');
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.innerHTML =
+      '' +
+      '<img class="image-lightbox__img" alt="" />' +
+      '<button type="button" class="image-lightbox__close" aria-label="Close image viewer">CLOSE</button>';
+    document.body.appendChild(el);
+
+    function clickInsideImage(e) {
+      var img = el.querySelector('.image-lightbox__img');
+      if (!img) return false;
+      var rect = img.getBoundingClientRect();
+      var x = typeof e.clientX === 'number' ? e.clientX : 0;
+      var y = typeof e.clientY === 'number' ? e.clientY : 0;
+      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    }
+
+    function sideForClick(e) {
+      var img = el.querySelector('.image-lightbox__img');
+      if (!img) return 'center';
+      var rect = img.getBoundingClientRect();
+      var x = typeof e.clientX === 'number' ? e.clientX : 0;
+      var center = rect.left + rect.width / 2;
+      var margin = rect.width * 0.08; // ignore clicks near center
+      if (Math.abs(x - center) < margin) return 'center';
+      return x < center ? 'prev' : 'next';
+    }
+
+    el.addEventListener('click', function (e) {
+      if (!lightboxState.open) return;
+
+      var t = e.target;
+      if (t && t.closest && t.closest('.image-lightbox__close')) {
+        e.stopPropagation();
+        closeLightbox();
+        return;
+      }
+
+      if (!clickInsideImage(e)) {
+        closeLightbox();
+        return;
+      }
+
+      var side = sideForClick(e);
+      if (side === 'prev') lightboxPrev();
+      else if (side === 'next') lightboxNext();
+    });
+
+    var closeBtn = el.querySelector('.image-lightbox__close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        closeLightbox();
+      });
+    }
+
+    function setLightboxCursor(kind) {
+      el.classList.remove('is-cursor-prev', 'is-cursor-next', 'is-cursor-default');
+      if (kind === 'prev') el.classList.add('is-cursor-prev');
+      else if (kind === 'next') el.classList.add('is-cursor-next');
+      else el.classList.add('is-cursor-default');
+    }
+
+    /* Directional prev/next cursor over the image only. */
+    el.addEventListener('mousemove', function (e) {
+      if (!lightboxState.open) return;
+      var img = el.querySelector('.image-lightbox__img');
+      if (!img) return;
+      var rect = img.getBoundingClientRect();
+      var x = e.clientX;
+      var y = e.clientY;
+      var inside = x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+      if (!inside) {
+        setLightboxCursor('default');
+        return;
+      }
+      var center = rect.left + rect.width / 2;
+      var margin = rect.width * 0.08;
+      if (Math.abs(x - center) < margin) {
+        setLightboxCursor('default');
+        return;
+      }
+      setLightboxCursor(x < center ? 'prev' : 'next');
+    });
+    el.addEventListener('mouseleave', function () {
+      setLightboxCursor('default');
+    });
+
+    el.addEventListener(
       'touchstart',
       function (e) {
-        if (getSliderSlides().length <= 1) return;
-        if (!e.touches || !e.touches.length) return;
-        var t = e.touches[0];
-        startX = t.clientX;
-        startY = t.clientY;
+        var t = e.touches && e.touches[0];
+        if (!t) return;
+        lightboxState.touchX = t.clientX;
+        lightboxState.touchY = t.clientY;
       },
       { passive: true },
     );
-    wrap.addEventListener(
+
+    el.addEventListener(
       'touchend',
       function (e) {
-        if (getSliderSlides().length <= 1) return;
         var t = e.changedTouches && e.changedTouches[0];
         if (!t) return;
-        var dx = t.clientX - startX;
-        var dy = t.clientY - startY;
-        if (Math.abs(dx) < swipeMin || Math.abs(dx) <= Math.abs(dy)) return;
-        if (dx < 0) goProject2Next();
-        else goProject2Prev();
+        var dx = t.clientX - lightboxState.touchX;
+        var dy = t.clientY - lightboxState.touchY;
+        if (Math.abs(dx) < 52 || Math.abs(dx) <= Math.abs(dy)) return;
+        if (dx < 0) lightboxNext();
+        else lightboxPrev();
       },
       { passive: true },
     );
   }
 
-  function clearProject2StoryPending() {
-    getProject2Roots().forEach(function (root) {
-      var wrap = root.querySelector('.immersive-story__image-wrap');
-      if (wrap) wrap.classList.remove('immersive-story__image-wrap--pending');
+  function lightboxEl() {
+    return document.getElementById('image-lightbox');
+  }
+
+  function renderLightbox() {
+    var el = lightboxEl();
+    if (!el) return;
+    var img = el.querySelector('.image-lightbox__img');
+    var urls = lightboxState.urls || [];
+    var idx = lightboxState.index || 0;
+    if (!urls.length || !img) return;
+    if (idx < 0) idx = 0;
+    if (idx >= urls.length) idx = urls.length - 1;
+    lightboxState.index = idx;
+    img.src = urls[idx];
+  }
+
+  function openLightbox(urls, index) {
+    ensureLightbox();
+    var el = lightboxEl();
+    if (!el) return;
+    lightboxState.open = true;
+    lightboxState.urls = Array.isArray(urls) ? urls.slice() : [];
+    lightboxState.index = typeof index === 'number' ? index : 0;
+    el.removeAttribute('hidden');
+    el.classList.add('is-cursor-default');
+    renderLightbox();
+  }
+
+  function closeLightbox() {
+    var el = lightboxEl();
+    if (!el) return;
+    lightboxState.open = false;
+    el.classList.remove('is-cursor-prev', 'is-cursor-next', 'is-cursor-default');
+    el.setAttribute('hidden', '');
+  }
+
+  function lightboxPrev() {
+    if (!lightboxState.urls.length) return;
+    lightboxState.index =
+      (lightboxState.index - 1 + lightboxState.urls.length) % lightboxState.urls.length;
+    renderLightbox();
+  }
+
+  function lightboxNext() {
+    if (!lightboxState.urls.length) return;
+    lightboxState.index = (lightboxState.index + 1) % lightboxState.urls.length;
+    renderLightbox();
+  }
+
+  function bindLightboxGlobalKeys() {
+    if (document.documentElement.dataset.lightboxKeysBound === '1') return;
+    document.documentElement.dataset.lightboxKeysBound = '1';
+    document.addEventListener('keydown', function (e) {
+      if (!lightboxState.open) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeLightbox();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        lightboxPrev();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        lightboxNext();
+      }
     });
   }
 
-  function initProject2Immersive() {
-    var roots = getProject2Roots();
-    if (!roots.length) return;
+  /* --- Project: split controls --- */
 
-    roots.forEach(function (root) {
-      if (root.dataset.bound === '1') return;
-      root.dataset.bound = '1';
+  function initProjectSplitFocusToggle() {
+    var split = document.getElementById('project-split');
+    if (!split) return;
 
-      var prevBtn = root.querySelector('.immersive-story__nav--prev');
-      var nextBtn = root.querySelector('.immersive-story__nav--next');
-      var imageWrap = root.querySelector('.immersive-story__image-wrap');
+    var view = document.querySelector('.view--project');
+    var controls = document.querySelector('.project-zoom-controls');
+    if (!controls) return;
 
-      if (prevBtn) prevBtn.addEventListener('click', goProject2Prev);
-      if (nextBtn) nextBtn.addEventListener('click', goProject2Next);
-      if (imageWrap) bindProject2ImageWrapSwipe(imageWrap);
+    var up = controls.querySelector('[data-split-shift="up"]');
+    var down = controls.querySelector('[data-split-shift="down"]');
+    if (!up || !down) return;
+
+    if (controls.dataset.bound === '1') return;
+    controls.dataset.bound = '1';
+
+    var MODES = ['text', 'balanced', 'images'];
+
+    function normalizeMode(raw) {
+      var m = String(raw || '').toLowerCase();
+      if (MODES.indexOf(m) !== -1) return m;
+      return 'balanced';
+    }
+
+    function setMode(mode) {
+      var m = normalizeMode(mode);
+      split.dataset.split = m;
+      if (view) view.dataset.split = m;
+      up.disabled = m === 'text';
+      down.disabled = m === 'images';
+    }
+
+    function shift(dir) {
+      if (!isMobileMode()) return;
+      var current = normalizeMode(split.dataset.split);
+      var idx = MODES.indexOf(current);
+      if (idx === -1) idx = 1;
+      var next = dir === 'up' ? Math.max(0, idx - 1) : Math.min(MODES.length - 1, idx + 1);
+      setMode(MODES[next]);
+    }
+
+    up.addEventListener('click', function () {
+      shift('up');
+    });
+    down.addEventListener('click', function () {
+      shift('down');
     });
 
-    currentProject2Slide = 0;
-    renderProject2Slide(0, { immediate: true });
-    clearProject2StoryPending();
+    function isMobileMode() {
+      return !!(window.matchMedia && window.matchMedia('(max-width: 599px)').matches);
+    }
+
+    function syncEnabledState() {
+      var mobile = isMobileMode();
+      up.disabled = !mobile || normalizeMode(split.dataset.split) === 'text';
+      down.disabled = !mobile || normalizeMode(split.dataset.split) === 'images';
+      if (!mobile) {
+        setMode('balanced');
+      } else {
+        setMode(normalizeMode(split.dataset.split || 'balanced'));
+      }
+    }
+
+    if (window.matchMedia) {
+      var mq = window.matchMedia('(max-width: 599px)');
+      if (mq && typeof mq.addEventListener === 'function') {
+        mq.addEventListener('change', syncEnabledState);
+      } else if (mq && typeof mq.addListener === 'function') {
+        mq.addListener(syncEnabledState);
+      }
+    }
+
+    setMode('balanced');
+    syncEnabledState();
   }
 
-  /* Loupe bitmap scale = base × scan zoom (user cannot change base). */
+  /* --- Immersive: flyer loupe --- */
+
+  /* Loupe magnification = base × scan zoom (base is fixed). */
   var FLYER_LOUPE_BASE_MAG = 3.75;
-  var FLYER_LENS_MIN = 36;
-  var FLYER_LENS_MAX = 160;
   var FLYER_LENS_DEFAULT = 64;
   var FLYER_IMG_ZOOM_MIN = 0.45;
   var FLYER_IMG_ZOOM_MAX = 3.5;
   var PAN_SLACK_ZOOMED_IN = 28;
   var PAN_MIN_OVERLAP_ZOOMED_OUT = 56;
-  var FLYER_PERSIST_KEY = 'sdv:overlocked-flyer-v1';
-
-  function flyerScanRel(side) {
-    var U = window.SDV_FLYER_SCAN_URLS;
-    if (U && typeof U.relPath === 'function') {
-      return U.relPath(side === 'back' ? 'back' : 'front');
-    }
-    return (
-      'images/uploads/overlocked-scan-' + (side === 'back' ? 'back' : 'front') + '.jpg'
-    );
-  }
-
-  function flyerScanRelBasename(rel) {
-    return rel.replace(/^.*\//, '');
-  }
-
-  function shouldDeferOppositeFlyerPreload() {
-    var c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-    if (!c) return false;
-    if (c.saveData) return true;
-    var t = c.effectiveType;
-    return t === 'slow-2g' || t === '2g';
-  }
+  var FLYER_PERSIST_KEY = 'sdv:flyer-v3';
 
   function runWhenIdle(cb) {
     if (typeof requestIdleCallback === 'function') {
@@ -362,48 +639,57 @@
   var overlockedFlyerMulti = null;
   var overlockedFlyerCoarseDocBound = false;
 
-  function loadOverlockedFlyerPersisted() {
+  function loadFlyerPersisted() {
     try {
       var raw = sessionStorage.getItem(FLYER_PERSIST_KEY);
       if (!raw) return null;
       var o = JSON.parse(raw);
-      if (!o || o.v !== 1 || typeof o !== 'object') return null;
+      if (!o || o.v !== 3 || typeof o !== 'object') return null;
       return o;
     } catch (err) {
       return null;
     }
   }
 
-  /** One global listener calls into latest init (immersive re-entry). */
-  var overlockedFlyerUi = {
-    dispatchKey: function () { },
-    onResize: function () { },
-    flyerZoomIn: function () { },
-    flyerZoomOut: function () { },
-    flyerLensSmaller: function () { },
-    flyerLensLarger: function () { },
-    flyerResetRotation: function () { },
-    flyerSnapRotation: function () { },
-    flyerFlipSide: function () { },
-    flyerActionClickBound: false,
-    hudToggleBound: false,
+  /** Delegates to the active flyer instance (supports immersive re-entry). */
+  var flyerUi = {
+    onResize: function () {},
+    prev: function () {},
+    next: function () {},
+    zoomIn: function () {},
+    zoomOut: function () {},
+    actionClickBound: false,
+    globalBound: false,
   };
-  var overlockedFlyerDrag = {
+  var flyerDrag = {
     active: false,
     lastX: 0,
     lastY: 0,
     inst: null,
     pointerId: null,
   };
-  var overlockedFlyerRotate = {
-    active: false,
-    inst: null,
-    pointerId: null,
-    lastRad: null,
-  };
-  var overlockedFlyerGlobalBound = false;
 
-  function initOverlockedFlyer() {
+  function flyerImages() {
+    var g = window.SDV_FLYER_IMAGES;
+    if (g && Array.isArray(g.images)) return g.images.filter(Boolean);
+    return [];
+  }
+
+  function prefetchFlyerImages(urls) {
+    if (!Array.isArray(urls)) return;
+    urls.forEach(function (displayUrl) {
+      if (!displayUrl) return;
+      var previewUrl = immersiveImagePreviewUrl(displayUrl);
+      [previewUrl, displayUrl].forEach(function (u) {
+        if (!u) return;
+        var im = new Image();
+        im.decoding = 'async';
+        im.src = u;
+      });
+    });
+  }
+
+  function initFlyer() {
     var roots = document.querySelectorAll('.immersive-flyer[data-flyer-root]');
     if (!roots.length) return;
     if (roots[0].getAttribute('data-flyer-bound') === '1') return;
@@ -414,45 +700,25 @@
     var state = {
       panX: 0,
       panY: 0,
-      /* Below 1 so the mat shows; a bit smaller to clear Overview + abstraction chrome */
       imgZoom: 0.85,
-      /* Any angle (degrees); CSS rotate + inverse for loupe hit-test */
-      rotationDeg: 0,
-      lensR: FLYER_LENS_DEFAULT,
+      imageReady: false,
       ptr: false,
       ptrClientX: 0,
       ptrClientY: 0,
       sxf: 0.5,
       syf: 0.5,
-      /* Which physical side of the sheet is shown (same pan/zoom/rotation for both scans). */
-      side: 'front',
+      imageIndex: 0,
     };
 
-    var persistedFlyer = loadOverlockedFlyerPersisted();
-    if (persistedFlyer) {
-      if (persistedFlyer.side === 'front' || persistedFlyer.side === 'back') {
-        state.side = persistedFlyer.side;
+    var persisted = loadFlyerPersisted();
+    if (persisted) {
+      if (typeof persisted.panX === 'number' && isFinite(persisted.panX)) state.panX = persisted.panX;
+      if (typeof persisted.panY === 'number' && isFinite(persisted.panY)) state.panY = persisted.panY;
+      if (typeof persisted.imgZoom === 'number' && isFinite(persisted.imgZoom)) {
+        state.imgZoom = Math.min(FLYER_IMG_ZOOM_MAX, Math.max(FLYER_IMG_ZOOM_MIN, persisted.imgZoom));
       }
-      if (typeof persistedFlyer.panX === 'number' && isFinite(persistedFlyer.panX)) {
-        state.panX = persistedFlyer.panX;
-      }
-      if (typeof persistedFlyer.panY === 'number' && isFinite(persistedFlyer.panY)) {
-        state.panY = persistedFlyer.panY;
-      }
-      if (typeof persistedFlyer.imgZoom === 'number' && isFinite(persistedFlyer.imgZoom)) {
-        state.imgZoom = Math.min(
-          FLYER_IMG_ZOOM_MAX,
-          Math.max(FLYER_IMG_ZOOM_MIN, persistedFlyer.imgZoom),
-        );
-      }
-      if (typeof persistedFlyer.rotationDeg === 'number' && isFinite(persistedFlyer.rotationDeg)) {
-        state.rotationDeg = persistedFlyer.rotationDeg;
-      }
-      if (typeof persistedFlyer.lensR === 'number' && isFinite(persistedFlyer.lensR)) {
-        state.lensR = Math.min(
-          FLYER_LENS_MAX,
-          Math.max(FLYER_LENS_MIN, persistedFlyer.lensR),
-        );
+      if (typeof persisted.imageIndex === 'number' && isFinite(persisted.imageIndex)) {
+        state.imageIndex = Math.max(0, Math.floor(persisted.imageIndex));
       }
     }
 
@@ -485,100 +751,181 @@
       inst.sheet.appendChild(mark);
     });
 
-    function writeOverlockedFlyerPersist() {
+    function writePersist() {
       try {
         sessionStorage.setItem(
           FLYER_PERSIST_KEY,
           JSON.stringify({
-            v: 1,
-            side: state.side,
+            v: 3,
             panX: state.panX,
             panY: state.panY,
             imgZoom: state.imgZoom,
-            rotationDeg: state.rotationDeg,
-            lensR: state.lensR,
+            imageIndex: state.imageIndex,
           }),
         );
-      } catch (errW) { }
+      } catch (errW) {}
     }
 
     var persistTimer = null;
-    function schedulePersistOverlockedFlyer() {
+    function schedulePersist() {
       if (persistTimer) clearTimeout(persistTimer);
       persistTimer = setTimeout(function () {
         persistTimer = null;
-        writeOverlockedFlyerPersist();
+        writePersist();
       }, 200);
     }
 
-    if (!overlockedFlyerUi._flyerBeforeUnloadBound) {
-      overlockedFlyerUi._flyerBeforeUnloadBound = true;
-      window.addEventListener('beforeunload', function () {
-        if (persistTimer) {
-          clearTimeout(persistTimer);
-          persistTimer = null;
-        }
-        writeOverlockedFlyerPersist();
-      });
+    function currentImageUrl() {
+      var imgs = flyerImages();
+      if (!imgs.length) return '';
+      var i = state.imageIndex % imgs.length;
+      if (i < 0) i += imgs.length;
+      state.imageIndex = i;
+      return imgs[i];
     }
 
-    function applyFlyerScanSide() {
-      var rel = flyerScanRel(state.side);
-      var url = assetUrl(rel);
-      var file = flyerScanRelBasename(rel);
+    function imageMatchesUrl(im, url) {
+      if (!im || !url) return false;
+      var attr = im.getAttribute('src') || '';
+      return attr === url || im.src === url || im.currentSrc === url;
+    }
+
+    function setFlyerLoading(loading) {
       instances.forEach(function (inst) {
-        inst.root.querySelectorAll('img').forEach(function (im) {
-          var cur = im.src.split('?')[0].replace(/^.*\//, '');
-          if (cur === file) return;
-          im.src = url;
-        });
+        if (inst.root) inst.root.classList.toggle('is-image-loading', !!loading);
       });
     }
 
-    var oppositeFlyerPreloadDone = false;
-    var oppositeFlyerPreloadScheduled = false;
-
-    function preloadFlyerOppositeSideOnce() {
-      if (oppositeFlyerPreloadDone) return;
-      if (shouldDeferOppositeFlyerPreload()) return;
-      oppositeFlyerPreloadDone = true;
-      var oppSide = state.side === 'back' ? 'front' : 'back';
-      var rel = flyerScanRel(oppSide);
-      var pre = new Image();
-      pre.src = assetUrl(rel);
+    function assignImagePair(mainImg, loupeImg, url) {
+      if (!mainImg || !url) return;
+      if (!imageMatchesUrl(mainImg, url)) mainImg.setAttribute('src', url);
+      if (loupeImg && !imageMatchesUrl(loupeImg, url)) loupeImg.setAttribute('src', url);
     }
 
-    function scheduleFlyerOppositePreloadAfterVisibleLoad() {
-      if (oppositeFlyerPreloadScheduled) return;
-      oppositeFlyerPreloadScheduled = true;
-      var inst0 = instances[0];
-      if (!inst0 || !inst0.sheet) return;
-      var img = inst0.sheet.querySelector('.immersive-flyer__img');
-      function kick() {
-        runWhenIdle(preloadFlyerOppositeSideOnce);
+    function applyCurrentImage() {
+      var displayUrl = currentImageUrl();
+      if (!displayUrl) {
+        state.imageReady = false;
+        setFlyerLoading(false);
+        return;
       }
-      if (img && img.complete && img.naturalWidth) {
-        kick();
-      } else if (img) {
-        img.addEventListener(
-          'load',
-          function onVis() {
-            img.removeEventListener('load', onVis);
-            kick();
-          },
-        );
-        img.addEventListener(
-          'error',
-          function onErr() {
-            img.removeEventListener('error', onErr);
-            kick();
-          },
-        );
-      }
-    }
 
-    applyFlyerScanSide();
-    scheduleFlyerOppositePreloadAfterVisibleLoad();
+      var previewUrl = immersiveImagePreviewUrl(displayUrl);
+      var useProgressive = previewUrl && previewUrl !== displayUrl;
+
+      instances.forEach(function (inst) {
+        if (!inst.sheet) return;
+        var mainImg = inst.sheet.querySelector('.immersive-flyer__img');
+        var loupeImg = inst.loupeStrip ? inst.loupeStrip.querySelector('img') : null;
+        if (!mainImg) return;
+
+        function markReady(isPreview) {
+          mainImg.classList.remove('is-loading');
+          mainImg.classList.add('is-ready');
+          mainImg.classList.toggle('is-preview', !!isPreview);
+          state.imageReady = !isPreview;
+          setFlyerLoading(false);
+          clampPan();
+          applyTransforms();
+          updateLoupe();
+        }
+
+        if (
+          imageMatchesUrl(mainImg, displayUrl) &&
+          mainImg.complete &&
+          mainImg.naturalWidth &&
+          !mainImg.classList.contains('is-preview')
+        ) {
+          assignImagePair(mainImg, loupeImg, displayUrl);
+          markReady(false);
+          return;
+        }
+
+        state.imageReady = false;
+        state.ptr = false;
+        mainImg.classList.remove('is-ready', 'is-preview');
+        mainImg.classList.add('is-loading');
+        setFlyerLoading(true);
+        if (loupeImg) loupeImg.removeAttribute('src');
+
+        var loadDisplay = displayUrl;
+
+        function onDisplayReady() {
+          if (currentImageUrl() !== loadDisplay) return;
+          assignImagePair(mainImg, loupeImg, loadDisplay);
+          markReady(false);
+        }
+
+        function startDisplayFetch() {
+          if (
+            imageMatchesUrl(mainImg, loadDisplay) &&
+            mainImg.complete &&
+            mainImg.naturalWidth &&
+            !mainImg.classList.contains('is-preview')
+          ) {
+            onDisplayReady();
+            return;
+          }
+          var full = new Image();
+          full.decoding = 'async';
+          full.onload = function () {
+            if (currentImageUrl() !== loadDisplay) return;
+            onDisplayReady();
+          };
+          full.onerror = function () {
+            if (currentImageUrl() !== loadDisplay) return;
+            setFlyerLoading(false);
+            mainImg.classList.remove('is-loading');
+          };
+          full.src = loadDisplay;
+        }
+
+        if (!useProgressive) {
+          assignImagePair(mainImg, loupeImg, loadDisplay);
+          function onSingleLoad() {
+            if (currentImageUrl() !== loadDisplay) return;
+            onDisplayReady();
+            mainImg.removeEventListener('load', onSingleLoad);
+            mainImg.removeEventListener('error', onSingleError);
+          }
+          function onSingleError() {
+            if (currentImageUrl() !== loadDisplay) return;
+            state.imageReady = false;
+            setFlyerLoading(false);
+            mainImg.classList.remove('is-loading');
+            mainImg.removeEventListener('load', onSingleLoad);
+            mainImg.removeEventListener('error', onSingleError);
+            updateLoupe();
+          }
+          mainImg.addEventListener('load', onSingleLoad);
+          mainImg.addEventListener('error', onSingleError);
+          if (mainImg.complete && mainImg.naturalWidth) onSingleLoad();
+          return;
+        }
+
+        var loadPreview = previewUrl;
+        assignImagePair(mainImg, loupeImg, loadPreview);
+
+        function onPreviewLoad() {
+          if (currentImageUrl() !== loadDisplay) return;
+          markReady(true);
+          startDisplayFetch();
+          mainImg.removeEventListener('load', onPreviewLoad);
+          mainImg.removeEventListener('error', onPreviewError);
+        }
+        function onPreviewError() {
+          if (currentImageUrl() !== loadDisplay) return;
+          mainImg.removeEventListener('load', onPreviewLoad);
+          mainImg.removeEventListener('error', onPreviewError);
+          assignImagePair(mainImg, loupeImg, loadDisplay);
+          startDisplayFetch();
+        }
+
+        mainImg.addEventListener('load', onPreviewLoad);
+        mainImg.addEventListener('error', onPreviewError);
+        if (mainImg.complete && mainImg.naturalWidth) onPreviewLoad();
+      });
+    }
 
     function clearDraggingUi() {
       instances.forEach(function (inst) {
@@ -589,14 +936,8 @@
     function applyTransforms() {
       instances.forEach(function (inst) {
         if (!inst.pan || !inst.sheet) return;
-        inst.pan.style.transform =
-          'translate(' + state.panX + 'px,' + state.panY + 'px)';
-        inst.sheet.style.transform =
-          'rotate(' +
-          state.rotationDeg +
-          'deg) scale(' +
-          state.imgZoom +
-          ')';
+        inst.pan.style.transform = 'translate(' + state.panX + 'px,' + state.panY + 'px)';
+        inst.sheet.style.transform = 'scale(' + state.imgZoom + ')';
         inst.sheet.style.transformOrigin = 'center center';
       });
     }
@@ -642,23 +983,14 @@
       return n === ancestor ? { ox: ox, oy: oy, ok: true } : { ox: 0, oy: 0, ok: false };
     }
 
-    /**
-     * Pointer → normalized bitmap coords [0,1]. Uses layout-center pivot + img box for object-fit
-     * (same box the browser paints into), so UVs don’t run ahead of the visible scan.
-     */
     function pointerToImageNorm(px, py, sheet, img) {
       var oc = sheetTransformOriginClient(sheet);
       var dx = px - oc.cx;
       var dy = py - oc.cy;
       var z = state.imgZoom;
       if (z < 1e-6) z = 1e-6;
-      var rad = (state.rotationDeg * Math.PI) / 180;
-      var cos = Math.cos(rad);
-      var sin = Math.sin(rad);
-      /* Sheet is rotate(θ) scale(z); CSS applies scale then rotate, so
-         screen delta = R * (z * local). Invert: local = R^-1 * screen / z. */
-      var lx = (dx * cos + dy * sin) / z;
-      var ly = (-dx * sin + dy * cos) / z;
+      var lx = dx / z;
+      var ly = dy / z;
       var iw = sheet.offsetWidth;
       var ih = sheet.offsetHeight;
       if (!iw || !ih) return { sxf: 0.5, syf: 0.5 };
@@ -687,32 +1019,20 @@
       if (!boxW || !boxH) return { sxf: 0.5, syf: 0.5 };
 
       var box = getContainedImageRect(boxW, boxH, nw, nh);
-      var sxf;
-      var syf;
+      var sxfRaw;
+      var syfRaw;
       if (box) {
-        sxf = (relx - box.imgLeft) / box.dispW;
-        syf = (rely - box.imgTop) / box.dispH;
+        sxfRaw = (relx - box.imgLeft) / box.dispW;
+        syfRaw = (rely - box.imgTop) / box.dispH;
       } else {
-        sxf = relx / boxW;
-        syf = rely / boxH;
+        sxfRaw = relx / boxW;
+        syfRaw = rely / boxH;
       }
       return {
-        sxf: Math.min(1, Math.max(0, sxf)),
-        syf: Math.min(1, Math.max(0, syf)),
+        sxf: Math.min(1, Math.max(0, sxfRaw)),
+        syf: Math.min(1, Math.max(0, syfRaw)),
+        inside: sxfRaw >= 0 && sxfRaw <= 1 && syfRaw >= 0 && syfRaw <= 1,
       };
-    }
-
-    function syncAfterRotationChange() {
-      clampPan();
-      applyTransforms();
-      updateLoupe();
-      schedulePersistOverlockedFlyer();
-    }
-
-    function unwrapAngleDelta(dRad) {
-      while (dRad > Math.PI) dRad -= 2 * Math.PI;
-      while (dRad < -Math.PI) dRad += 2 * Math.PI;
-      return dRad;
     }
 
     function clampPan() {
@@ -754,33 +1074,53 @@
       }
     }
 
+    function setLoupeCursor(inst, active) {
+      if (!inst || !inst.viewport) return;
+      if (active) inst.viewport.classList.add('is-loupe-active');
+      else inst.viewport.classList.remove('is-loupe-active');
+    }
+
     function updateLoupe() {
       var Seff = FLYER_LOUPE_BASE_MAG * state.imgZoom;
-      var R = state.lensR;
-      if (!state.ptr) {
+      var R = FLYER_LENS_DEFAULT;
+      if (!state.ptr || !state.imageReady) {
         instances.forEach(function (inst) {
           if (inst.loupe) inst.loupe.setAttribute('hidden', '');
+          setLoupeCursor(inst, false);
         });
         return;
       }
 
       instances.forEach(function (inst) {
-        if (!inst.loupe || !inst.loupeStrip || !inst.sheet || !inst.loupeDisk || !inst.viewport) return;
+        if (!inst.loupe || !inst.loupeStrip || !inst.sheet || !inst.loupeDisk || !inst.viewport)
+          return;
         var img = inst.sheet.querySelector('.immersive-flyer__img');
-        if (!img) return;
+        if (!img || !img.classList.contains('is-ready') || !img.naturalWidth) {
+          inst.loupe.setAttribute('hidden', '');
+          setLoupeCursor(inst, false);
+          return;
+        }
         var vr = inst.viewport.getBoundingClientRect();
         var px = state.ptrClientX;
         var py = state.ptrClientY;
 
         var norm = pointerToImageNorm(px, py, inst.sheet, img);
+        if (!norm.inside) {
+          inst.loupe.setAttribute('hidden', '');
+          setLoupeCursor(inst, false);
+          return;
+        }
         state.sxf = norm.sxf;
         state.syf = norm.syf;
 
         var iw = inst.sheet.offsetWidth;
         var ih = inst.sheet.offsetHeight;
-        if (!iw || !ih) return;
+        if (!iw || !ih) {
+          inst.loupe.setAttribute('hidden', '');
+          setLoupeCursor(inst, false);
+          return;
+        }
 
-        /* Strip img is 100%×100% of iw×ih; map UV with same iw/ih contain (not figure/img offsets). */
         var nw = img.naturalWidth;
         var nh = img.naturalHeight;
         var stripBox = getContainedImageRect(iw, ih, nw, nh);
@@ -795,18 +1135,15 @@
         }
 
         inst.loupe.removeAttribute('hidden');
+        setLoupeCursor(inst, true);
 
         inst.loupeDisk.style.width = 2 * R + 'px';
         inst.loupeDisk.style.height = 2 * R + 'px';
         inst.loupeDisk.style.left = -R + 'px';
         inst.loupeDisk.style.top = -R + 'px';
         inst.loupeDisk.style.transformOrigin = 'center center';
-        inst.loupeDisk.style.transform = 'rotate(' + state.rotationDeg + 'deg)';
-        /*
-         * Place the wireframe ring so the small circle in the SVG is externally tangent to the
-         * lens disk (radius R) along the SE diagonal — same at every lens size.
-         * SVG: circle cx=cy=10 r=5 in viewBox 24; ring element is 26×26px.
-         */
+        inst.loupeDisk.style.transform = 'none';
+
         var ringPx = 26;
         var ringVb = 24;
         var iconRv = 5;
@@ -821,6 +1158,7 @@
           inst.loupeRing.style.left = glassCx - cxOff + 'px';
           inst.loupeRing.style.top = glassCy - cyOff + 'px';
         }
+
         inst.loupeStrip.style.width = iw + 'px';
         inst.loupeStrip.style.height = ih + 'px';
         inst.loupeStrip.style.transform =
@@ -832,7 +1170,6 @@
           Seff +
           ')';
 
-        /* Pointer stays on the small-glass center (same hit target as before). */
         inst.loupe.style.left = px - vr.left - glassCx + 'px';
         inst.loupe.style.top = py - vr.top - glassCy + 'px';
         inst.loupe.style.transform = 'none';
@@ -869,7 +1206,6 @@
         lastMidX: midX,
         lastMidY: midY,
         lastDist: dist,
-        lastAng: Math.atan2(dy, dx),
       };
     }
 
@@ -880,21 +1216,17 @@
       var dx = p1.x - p0.x;
       var dy = p1.y - p0.y;
       var dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      var ang = Math.atan2(dy, dx);
       var m = overlockedFlyerMulti;
       var scale = dist / m.lastDist;
       state.imgZoom = Math.min(
         FLYER_IMG_ZOOM_MAX,
         Math.max(FLYER_IMG_ZOOM_MIN, state.imgZoom * scale),
       );
-      var dRad = unwrapAngleDelta(ang - m.lastAng);
-      state.rotationDeg += (dRad * 180) / Math.PI;
       state.panX += midX - m.lastMidX;
       state.panY += midY - m.lastMidY;
       m.lastMidX = midX;
       m.lastMidY = midY;
       m.lastDist = dist;
-      m.lastAng = ang;
       clampPan();
       applyTransforms();
       updateLoupe();
@@ -907,7 +1239,7 @@
       document.addEventListener(
         'pointermove',
         function (e) {
-          if (currentSlug !== SLUG_OVER) return;
+          if (!document.querySelector('.immersive-page')) return;
           if (!overlockedFlyerPtrMap.has(e.pointerId)) return;
           var rec = overlockedFlyerPtrMap.get(e.pointerId);
           rec.x = e.clientX;
@@ -918,7 +1250,7 @@
             e.preventDefault();
             applyFlyerMultitouchFrame(inst, pts[0], pts[1]);
           } else if (pts.length === 1) {
-            if (overlockedFlyerRotate.active || overlockedFlyerDrag.active) return;
+            if (flyerDrag.active) return;
             syncPointerFromEvent(e, inst);
             updateLoupe();
           }
@@ -927,7 +1259,7 @@
       );
 
       function coarsePointerEnd(e) {
-        if (currentSlug !== SLUG_OVER) return;
+        if (!document.querySelector('.immersive-page')) return;
         if (!overlockedFlyerPtrMap.has(e.pointerId)) return;
         var rec = overlockedFlyerPtrMap.get(e.pointerId);
         var inst = rec.inst;
@@ -939,17 +1271,17 @@
         if (pts.length === 0) {
           try {
             inst.stage.releasePointerCapture(e.pointerId);
-          } catch (rel0) { }
+          } catch (rel0) {}
           clearDraggingUi();
           state.ptr = false;
           updateLoupe();
-          schedulePersistOverlockedFlyer();
+          schedulePersist();
         } else if (pts.length === 1) {
           overlockedFlyerPtrMap.forEach(function (v, pid) {
             if (v.inst === inst) {
               try {
                 inst.stage.setPointerCapture(pid);
-              } catch (c1) { }
+              } catch (c1) {}
             }
           });
           var px = pts[0].x;
@@ -962,7 +1294,7 @@
           }
           inst.viewport.classList.add('is-dragging');
           updateLoupe();
-          schedulePersistOverlockedFlyer();
+          schedulePersist();
         }
       }
 
@@ -976,26 +1308,12 @@
       }
       syncPointerFromEvent(e, inst);
 
-      if (overlockedFlyerRotate.active && overlockedFlyerRotate.inst === inst) {
+      if (flyerDrag.active && flyerDrag.inst === inst) {
         e.preventDefault();
-        applyTransforms();
-        var oc = sheetTransformOriginClient(inst.sheet);
-        var rad = Math.atan2(e.clientY - oc.cy, e.clientX - oc.cx);
-        var dRad = unwrapAngleDelta(rad - overlockedFlyerRotate.lastRad);
-        state.rotationDeg += (dRad * 180) / Math.PI;
-        overlockedFlyerRotate.lastRad = rad;
-        clampPan();
-        applyTransforms();
-        updateLoupe();
-        return;
-      }
-
-      if (overlockedFlyerDrag.active && overlockedFlyerDrag.inst === inst) {
-        e.preventDefault();
-        var dx = e.clientX - overlockedFlyerDrag.lastX;
-        var dy = e.clientY - overlockedFlyerDrag.lastY;
-        overlockedFlyerDrag.lastX = e.clientX;
-        overlockedFlyerDrag.lastY = e.clientY;
+        var dx = e.clientX - flyerDrag.lastX;
+        var dy = e.clientY - flyerDrag.lastY;
+        flyerDrag.lastX = e.clientX;
+        flyerDrag.lastY = e.clientY;
         state.panX += dx;
         state.panY += dy;
         clampPan();
@@ -1017,56 +1335,33 @@
           if (e.button !== 0) return;
           if (e.shiftKey) return;
           e.preventDefault();
-          if (e.altKey) {
-            overlockedFlyerRotate.active = true;
-            overlockedFlyerRotate.inst = inst;
-            overlockedFlyerRotate.pointerId = e.pointerId;
-            applyTransforms();
-            var oc0 = sheetTransformOriginClient(inst.sheet);
-            overlockedFlyerRotate.lastRad = Math.atan2(
-              e.clientY - oc0.cy,
-              e.clientX - oc0.cx,
-            );
-            inst.viewport.classList.add('is-dragging');
-            try {
-              inst.stage.setPointerCapture(e.pointerId);
-            } catch (err) { }
-            syncPointerFromEvent(e, inst);
-            return;
-          }
           if (isFlyerCoarsePointer()) {
             bindFlyerCoarseDocumentListenersOnce();
-            overlockedFlyerPtrMap.set(e.pointerId, {
-              inst: inst,
-              x: e.clientX,
-              y: e.clientY,
-            });
+            overlockedFlyerPtrMap.set(e.pointerId, { inst: inst, x: e.clientX, y: e.clientY });
             var cnt = flyerPointersOnInst(inst).length;
             if (cnt === 1) {
               overlockedFlyerMulti = null;
               inst.viewport.classList.add('is-dragging');
               try {
                 inst.stage.setPointerCapture(e.pointerId);
-              } catch (errC) { }
+              } catch (errC) {}
               syncPointerFromEvent(e, inst);
               updateLoupe();
             } else if (cnt === 2) {
-              overlockedFlyerDrag.active = false;
-              overlockedFlyerDrag.inst = null;
-              overlockedFlyerDrag.pointerId = null;
+              flyerDrag.active = false;
+              flyerDrag.inst = null;
+              flyerDrag.pointerId = null;
               var releaseIds = [];
               overlockedFlyerPtrMap.forEach(function (v, pid) {
                 if (v.inst === inst) releaseIds.push(pid);
               });
-              for (var ri = 0; ri < releaseIds.length; ri++) {
+              for (var rj = 0; rj < releaseIds.length; rj++) {
                 try {
-                  inst.stage.releasePointerCapture(releaseIds[ri]);
-                } catch (errRel) { }
+                  inst.stage.releasePointerCapture(releaseIds[rj]);
+                } catch (errRel) {}
               }
               var pts2 = flyerPointersOnInst(inst);
-              if (pts2.length >= 2) {
-                beginFlyerMultitouch(inst, pts2[0], pts2[1]);
-              }
+              if (pts2.length >= 2) beginFlyerMultitouch(inst, pts2[0], pts2[1]);
               state.ptr = false;
               clearDraggingUi();
               inst.viewport.classList.add('is-dragging');
@@ -1074,15 +1369,15 @@
             }
             return;
           }
-          overlockedFlyerDrag.active = true;
-          overlockedFlyerDrag.inst = inst;
-          overlockedFlyerDrag.pointerId = e.pointerId;
-          overlockedFlyerDrag.lastX = e.clientX;
-          overlockedFlyerDrag.lastY = e.clientY;
+          flyerDrag.active = true;
+          flyerDrag.inst = inst;
+          flyerDrag.pointerId = e.pointerId;
+          flyerDrag.lastX = e.clientX;
+          flyerDrag.lastY = e.clientY;
           inst.viewport.classList.add('is-dragging');
           try {
             inst.stage.setPointerCapture(e.pointerId);
-          } catch (err) { }
+          } catch (err2) {}
           syncPointerFromEvent(e, inst);
         },
         true,
@@ -1107,7 +1402,7 @@
 
       inst.stage.addEventListener('pointerleave', function () {
         if (overlockedFlyerPtrMap.size) return;
-        if (!overlockedFlyerDrag.active && !overlockedFlyerRotate.active) {
+        if (!flyerDrag.active) {
           state.ptr = false;
           updateLoupe();
         }
@@ -1120,38 +1415,22 @@
 
       inst.stage.addEventListener('pointerup', function (e) {
         if (isFlyerCoarsePointer()) return;
-        if (overlockedFlyerRotate.active && overlockedFlyerRotate.inst === inst) {
+        if (!flyerDrag.active || flyerDrag.inst !== inst) return;
           try {
             inst.stage.releasePointerCapture(e.pointerId);
-          } catch (errR) { }
-          overlockedFlyerRotate.active = false;
-          overlockedFlyerRotate.inst = null;
-          overlockedFlyerRotate.pointerId = null;
-          overlockedFlyerRotate.lastRad = null;
+        } catch (err3) {}
+        flyerDrag.active = false;
+        flyerDrag.inst = null;
+        flyerDrag.pointerId = null;
           clearDraggingUi();
-          schedulePersistOverlockedFlyer();
-          return;
-        }
-        if (!overlockedFlyerDrag.active || overlockedFlyerDrag.inst !== inst) return;
-        try {
-          inst.stage.releasePointerCapture(e.pointerId);
-        } catch (err2) { }
-        overlockedFlyerDrag.active = false;
-        overlockedFlyerDrag.inst = null;
-        overlockedFlyerDrag.pointerId = null;
-        clearDraggingUi();
-        schedulePersistOverlockedFlyer();
+        schedulePersist();
       });
 
       inst.stage.addEventListener('pointercancel', function () {
         if (isFlyerCoarsePointer()) return;
-        overlockedFlyerRotate.active = false;
-        overlockedFlyerRotate.inst = null;
-        overlockedFlyerRotate.pointerId = null;
-        overlockedFlyerRotate.lastRad = null;
-        overlockedFlyerDrag.active = false;
-        overlockedFlyerDrag.inst = null;
-        overlockedFlyerDrag.pointerId = null;
+        flyerDrag.active = false;
+        flyerDrag.inst = null;
+        flyerDrag.pointerId = null;
         clearDraggingUi();
       });
 
@@ -1159,13 +1438,9 @@
         'lostpointercapture',
         function () {
           if (isFlyerCoarsePointer()) return;
-          overlockedFlyerRotate.active = false;
-          overlockedFlyerRotate.inst = null;
-          overlockedFlyerRotate.pointerId = null;
-          overlockedFlyerRotate.lastRad = null;
-          overlockedFlyerDrag.active = false;
-          overlockedFlyerDrag.inst = null;
-          overlockedFlyerDrag.pointerId = null;
+          flyerDrag.active = false;
+          flyerDrag.inst = null;
+          flyerDrag.pointerId = null;
           clearDraggingUi();
         },
       );
@@ -1173,1057 +1448,161 @@
       inst.stage.addEventListener(
         'wheel',
         function (e) {
-          if (e.altKey) {
+          if (isFlyerCoarsePointer()) return;
             e.preventDefault();
             var factor = e.deltaY < 0 ? 1.09 : 1 / 1.09;
-            state.imgZoom = Math.min(
-              FLYER_IMG_ZOOM_MAX,
-              Math.max(FLYER_IMG_ZOOM_MIN, state.imgZoom * factor),
-            );
-            clampPan();
-            applyTransforms();
-            updateLoupe();
-            schedulePersistOverlockedFlyer();
-            return;
-          }
-          if (!e.shiftKey) return;
-          e.preventDefault();
-          var d = e.deltaY > 0 ? -5 : 5;
-          state.lensR = Math.min(FLYER_LENS_MAX, Math.max(FLYER_LENS_MIN, state.lensR + d));
-          updateLoupe();
-          schedulePersistOverlockedFlyer();
+          applyZoomFactor(factor);
         },
         { passive: false },
       );
-
     });
 
-    function flyerApplyZoomFactor(factor) {
-      state.imgZoom = Math.min(
-        FLYER_IMG_ZOOM_MAX,
-        Math.max(FLYER_IMG_ZOOM_MIN, state.imgZoom * factor),
-      );
+    function applyZoomFactor(factor) {
+      state.imgZoom = Math.min(FLYER_IMG_ZOOM_MAX, Math.max(FLYER_IMG_ZOOM_MIN, state.imgZoom * factor));
       clampPan();
       applyTransforms();
       updateLoupe();
-      schedulePersistOverlockedFlyer();
+      schedulePersist();
     }
 
-    overlockedFlyerUi.flyerZoomIn = function () {
-      if (currentSlug !== SLUG_OVER) return;
-      flyerApplyZoomFactor(1.12);
-    };
-    overlockedFlyerUi.flyerZoomOut = function () {
-      if (currentSlug !== SLUG_OVER) return;
-      flyerApplyZoomFactor(1 / 1.12);
-    };
-    overlockedFlyerUi.flyerLensSmaller = function () {
-      if (currentSlug !== SLUG_OVER) return;
-      state.lensR = Math.max(FLYER_LENS_MIN, state.lensR - 8);
+    function setImageIndex(nextIndex) {
+      var imgs = flyerImages();
+      if (!imgs.length) return;
+      var n = imgs.length;
+      var i = nextIndex % n;
+      if (i < 0) i += n;
+      state.imageIndex = i;
+      state.panX = 0;
+      state.panY = 0;
+      state.imgZoom = 0.85;
+      state.imageReady = false;
+      state.ptr = false;
+      applyCurrentImage();
+      applyTransforms();
       updateLoupe();
-      schedulePersistOverlockedFlyer();
-    };
-    overlockedFlyerUi.flyerLensLarger = function () {
-      if (currentSlug !== SLUG_OVER) return;
-      state.lensR = Math.min(FLYER_LENS_MAX, state.lensR + 8);
-      updateLoupe();
-      schedulePersistOverlockedFlyer();
-    };
-    overlockedFlyerUi.flyerFlipSide = function () {
-      if (currentSlug !== SLUG_OVER) return;
-      var nextSide = state.side === 'back' ? 'front' : 'back';
-      var rel = flyerScanRel(nextSide);
-      var url = assetUrl(rel);
-      var inst0 = instances[0];
-      var sheetImg =
-        inst0 && inst0.sheet && inst0.sheet.querySelector('.immersive-flyer__img');
-      var nextFile = flyerScanRelBasename(rel);
-      var curFile =
-        sheetImg && sheetImg.src
-          ? sheetImg.src.split('?')[0].replace(/^.*\//, '')
-          : '';
+      writePersist();
+    }
 
-      function applyFlipAndRefresh() {
-        state.side = nextSide;
-        applyFlyerScanSide();
-        instances.forEach(function (i) {
-          if (i.viewport) i.viewport.classList.remove('is-flyer-flip-loading');
-        });
+    flyerUi.prev = function () {
+      setImageIndex(state.imageIndex - 1);
+    };
+    flyerUi.next = function () {
+      setImageIndex(state.imageIndex + 1);
+    };
+    flyerUi.zoomIn = function () {
+      applyZoomFactor(1.12);
+    };
+    flyerUi.zoomOut = function () {
+      applyZoomFactor(1 / 1.12);
+    };
+
+    flyerUi.onResize = function () {
+      applyCurrentImage();
         clampPan();
         applyTransforms();
         updateLoupe();
-        writeOverlockedFlyerPersist();
-      }
-
-      if (curFile === nextFile) {
-        applyFlipAndRefresh();
-        return;
-      }
-
-      instances.forEach(function (i) {
-        if (i.viewport) i.viewport.classList.add('is-flyer-flip-loading');
-      });
-
-      var loader = new Image();
-      loader.src = url;
-
-      function finishDecode() {
-        applyFlipAndRefresh();
-      }
-
-      if (loader.complete && loader.naturalWidth) {
-        if (loader.decode) {
-          loader.decode().then(finishDecode).catch(finishDecode);
-        } else {
-          finishDecode();
-        }
-        return;
-      }
-
-      loader.onload = function () {
-        if (loader.decode) {
-          loader.decode().then(finishDecode).catch(finishDecode);
-        } else {
-          finishDecode();
-        }
-      };
-      loader.onerror = function () {
-        finishDecode();
-      };
-    };
-    overlockedFlyerUi.flyerResetRotation = function () {
-      if (currentSlug !== SLUG_OVER) return;
-      state.rotationDeg = 0;
-      syncAfterRotationChange();
-    };
-    overlockedFlyerUi.flyerSnapRotation = function () {
-      if (currentSlug !== SLUG_OVER) return;
-      state.rotationDeg = Math.round(state.rotationDeg / 90) * 90;
-      syncAfterRotationChange();
+      schedulePersist();
     };
 
-    overlockedFlyerUi.dispatchKey = function (e) {
-      if (currentSlug !== SLUG_OVER) return;
+    function dispatchKey(e) {
+      if (!document.querySelector('.immersive-page')) return;
       if (!document.querySelector('.immersive-flyer[data-flyer-root]')) return;
       var target = document.activeElement;
-      if (
-        target &&
-        (target.matches('input, textarea, select') || target.isContentEditable)
-      ) {
+      if (target && (target.matches('input, textarea, select') || target.isContentEditable)) {
         return;
       }
-      if (e.altKey) {
-        if (e.key === '=' || e.key === '+') {
-          overlockedFlyerUi.flyerZoomIn();
-          e.preventDefault();
+      if (e.key === 'Escape') {
+        state.ptr = false;
+        updateLoupe();
           return;
         }
-        if (e.key === '-' || e.key === '_') {
-          overlockedFlyerUi.flyerZoomOut();
+      if (e.key === 'ArrowLeft') {
           e.preventDefault();
+        flyerUi.prev();
           return;
         }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        flyerUi.next();
+        return;
       }
-      if (e.key === '[') {
-        overlockedFlyerUi.flyerLensSmaller();
-        e.preventDefault();
-      } else if (e.key === ']') {
-        overlockedFlyerUi.flyerLensLarger();
-        e.preventDefault();
-      } else if (
-        !e.ctrlKey &&
-        !e.metaKey &&
-        !e.altKey &&
-        (e.key === 'f' || e.key === 'F')
-      ) {
-        overlockedFlyerUi.flyerFlipSide();
-        e.preventDefault();
-      } else if (
-        !e.ctrlKey &&
-        !e.metaKey &&
-        !e.altKey &&
-        (e.key === 'r' || e.key === 'R')
-      ) {
-        if (e.shiftKey) {
-          overlockedFlyerUi.flyerSnapRotation();
-        } else {
-          overlockedFlyerUi.flyerResetRotation();
-        }
-        e.preventDefault();
-      }
-    };
+    }
 
-    overlockedFlyerUi.onResize = function () {
-      if (currentSlug !== SLUG_OVER) return;
-      applyFlyerScanSide();
-      clampPan();
-      applyTransforms();
-      updateLoupe();
-      schedulePersistOverlockedFlyer();
-    };
-
-    overlockedFlyerUi.endDrag = function () {
-      clearDraggingUi();
-    };
-
-    if (!overlockedFlyerGlobalBound) {
-      overlockedFlyerGlobalBound = true;
-      document.addEventListener('keydown', function (e) {
-        overlockedFlyerUi.dispatchKey(e);
-      });
+    if (!flyerUi.globalBound) {
+      flyerUi.globalBound = true;
+      document.addEventListener('keydown', dispatchKey);
       window.addEventListener('resize', function () {
-        overlockedFlyerUi.onResize();
-      });
-      document.addEventListener('pointerup', function (e) {
-        if (overlockedFlyerRotate.active) {
-          var instR = overlockedFlyerRotate.inst;
-          var pidR = overlockedFlyerRotate.pointerId;
-          overlockedFlyerRotate.active = false;
-          overlockedFlyerRotate.inst = null;
-          overlockedFlyerRotate.pointerId = null;
-          overlockedFlyerRotate.lastRad = null;
-          if (overlockedFlyerUi.endDrag) overlockedFlyerUi.endDrag();
-          if (instR && instR.stage && pidR != null) {
-            try {
-              instR.stage.releasePointerCapture(pidR);
-            } catch (relR) { }
-          }
-          schedulePersistOverlockedFlyer();
-          return;
-        }
-        if (!overlockedFlyerDrag.active) return;
-        var inst = overlockedFlyerDrag.inst;
-        var pid = overlockedFlyerDrag.pointerId;
-        overlockedFlyerDrag.active = false;
-        overlockedFlyerDrag.inst = null;
-        overlockedFlyerDrag.pointerId = null;
-        if (overlockedFlyerUi.endDrag) overlockedFlyerUi.endDrag();
-        if (inst && inst.stage && pid != null) {
-          try {
-            inst.stage.releasePointerCapture(pid);
-          } catch (rel) { }
-        }
-        schedulePersistOverlockedFlyer();
+        flyerUi.onResize();
       });
     }
 
-    instances.forEach(function (inst) {
-      if (!inst.sheet) return;
-      inst.sheet.querySelectorAll('img').forEach(function (im) {
-        im.addEventListener('load', function () {
-          clampPan();
-          applyTransforms();
-          updateLoupe();
-        });
-      });
-    });
-
-    if (!overlockedFlyerUi.flyerActionClickBound) {
-      overlockedFlyerUi.flyerActionClickBound = true;
+    if (!flyerUi.actionClickBound) {
+      flyerUi.actionClickBound = true;
       document.addEventListener('click', function (e) {
         var btn = e.target.closest('[data-flyer-action]');
-        if (!btn || currentSlug !== SLUG_OVER) return;
+        if (!btn) return;
+        if (!document.querySelector('.immersive-page')) return;
         e.preventDefault();
         var act = btn.getAttribute('data-flyer-action');
-        if (act === 'zoom-in') {
-          overlockedFlyerUi.flyerZoomIn();
-        } else if (act === 'zoom-out') {
-          overlockedFlyerUi.flyerZoomOut();
-        } else if (act === 'lens-smaller') {
-          overlockedFlyerUi.flyerLensSmaller();
-        } else if (act === 'lens-larger') {
-          overlockedFlyerUi.flyerLensLarger();
-        } else if (act === 'reset-rotation') {
-          overlockedFlyerUi.flyerResetRotation();
-        } else if (act === 'snap-rotation') {
-          overlockedFlyerUi.flyerSnapRotation();
-        } else if (act === 'flip-side') {
-          overlockedFlyerUi.flyerFlipSide();
-        }
+        if (act === 'zoom-in') flyerUi.zoomIn();
+        else if (act === 'zoom-out') flyerUi.zoomOut();
+        else if (act === 'prev') flyerUi.prev();
+        else if (act === 'next') flyerUi.next();
       });
     }
 
-    if (!overlockedFlyerUi.hudToggleBound) {
-      overlockedFlyerUi.hudToggleBound = true;
-      document.addEventListener('click', function (e) {
-        var tg = e.target.closest('.immersive-flyer__hud-toggle');
-        if (!tg || currentSlug !== SLUG_OVER) return;
-        e.preventDefault();
-        var root = tg.closest('[data-flyer-root]');
-        if (!root) return;
-        var hidden = root.classList.toggle('is-flyer-help-hidden');
-        tg.setAttribute('aria-expanded', hidden ? 'false' : 'true');
-        tg.setAttribute(
-          'title',
-          hidden ? 'Show on-screen controls' : 'Hide on-screen controls',
-        );
-        tg.setAttribute(
-          'aria-label',
-          hidden ? 'Show on-screen controls' : 'Hide on-screen controls',
-        );
-      });
-    }
-
-    clampPan();
-    applyTransforms();
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
+    applyCurrentImage();
+    runWhenIdle(function () {
+      applyCurrentImage();
         clampPan();
         applyTransforms();
         updateLoupe();
-      });
     });
-  }
-
-  var immersiveChromeDockBound = false;
-
-  function bindImmersiveChromeDock() {
-    if (immersiveChromeDockBound) return;
-    var page = document.querySelector(
-      '.immersive-page[data-slug="overlocked"], .immersive-page[data-slug="under-the-needles-eye"]',
-    );
-    if (!page || !document.getElementById('immersive-chrome-dock')) return;
-    immersiveChromeDockBound = true;
-
-    document.addEventListener('keydown', function onImmersiveChromeEscape(e) {
-      if (e.key !== 'Escape') return;
-      var p = document.querySelector(
-        '.immersive-page[data-slug="overlocked"].is-chrome-collapsed, .immersive-page[data-slug="under-the-needles-eye"].is-chrome-collapsed',
-      );
-      if (!p) return;
-      var t = e.target;
-      if (
-        t &&
-        (t.matches('input, textarea, select') || t.isContentEditable)
-      ) {
-        return;
-      }
-      e.preventDefault();
-      p.classList.remove('is-chrome-collapsed');
-      var toggle = document.getElementById('chrome-toggle-btn');
-      if (toggle) {
-        toggle.setAttribute('aria-pressed', 'false');
-        toggle.setAttribute(
-          'aria-label',
-          'Hide interface. Press Escape to show again.',
-        );
-        toggle.title = 'Hide interface (Escape to show)';
-      }
-    });
-
-    document.addEventListener('click', function onChromeToggleClick(e) {
-      var tg = e.target.closest('#chrome-toggle-btn');
-      if (!tg) return;
-      var pg = tg.closest('.immersive-page');
-      if (!pg) return;
-      var collapsed = pg.classList.toggle('is-chrome-collapsed');
-      tg.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
-      if (collapsed) {
-        tg.setAttribute('aria-label', 'Show interface');
-        tg.title = 'Show interface (Escape)';
-      } else {
-        tg.setAttribute(
-          'aria-label',
-          'Hide interface. Press Escape to show again.',
-        );
-        tg.title = 'Hide interface (Escape to show)';
-      }
-    });
-
-    document.addEventListener('click', function onStoryDockClick(e) {
-      var b = e.target.closest('[data-story-action]');
-      if (!b || currentSlug !== SLUG_NEEDLE) return;
-      e.preventDefault();
-      var a = b.getAttribute('data-story-action');
-      if (a === 'prev') goProject2Prev();
-      else if (a === 'next') goProject2Next();
-    });
-  }
-
-  var project2KeyboardBound = false;
-  function initProject2Keyboard() {
-    if (project2KeyboardBound) return;
-    project2KeyboardBound = true;
-    document.addEventListener('keydown', function onKey(e) {
-      var page = document.querySelector('.immersive-page');
-      if (!page) return;
-      if (currentSlug !== SLUG_NEEDLE) return;
-      var target = document.activeElement;
-      if (target && (target.matches('input, textarea, select') || target.isContentEditable)) return;
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        goProject2Prev();
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        goProject2Next();
-      }
-    });
-  }
-
-  function syncLawState() {
-    var main = document.getElementById('immersive-inner');
-    var inset = document.getElementById('immersive-inner-inset');
-    [main, inset].forEach(function (root) {
-      if (!root) return;
-      var layout = root.querySelector('.law-layout');
-      if (!layout) return;
-      var slots = layout.querySelectorAll('.law-image-inline');
-      var buttons = layout.querySelectorAll('.law-fragment');
-      for (var i = 0; i < lawOpenState.length; i++) {
-        var src = lawOpenState[i] || null;
-        if (slots[i]) {
-          slots[i].innerHTML = src
-            ? '<img src="' + String(src).replace(/"/g, '&quot;') + '" alt="" />'
-            : '';
-        }
-        if (buttons[i]) buttons[i].classList.toggle('is-active', !!src);
-      }
-    });
-  }
-
-  function initLawScroll(layout) {
-    if (!layout || layout.dataset.lawScrollBound === '1') return;
-    layout.dataset.lawScrollBound = '1';
-
-    var scrollContainer = layout.closest('.immersive-main') || layout.closest('.abstraction-inset');
-    if (!scrollContainer) return;
-
-    var lastY = scrollContainer.scrollTop;
-    var resetTimer = null;
-    var fragments = layout.querySelectorAll('.law-fragment');
-    if (!fragments.length) return;
-
-    function applyTilt(deltaY) {
-      if (!deltaY) return;
-      var dir = deltaY > 0 ? 1 : -1;
-      var intensity = Math.min(1, Math.abs(deltaY) / 40);
-      var maxTranslate = 10;
-      var maxRotate = 6;
-      var offset = dir * maxTranslate * intensity;
-      var angle = dir * maxRotate * intensity;
-
-      fragments.forEach(function (btn, index) {
-        var phase = index % 2 === 0 ? 1 : -1;
-        btn.style.transform = 'translateY(' + (offset * phase) + 'px) rotate(' + (angle * phase) + 'deg)';
-      });
-    }
-
-    function resetTilt() {
-      fragments.forEach(function (btn) {
-        btn.style.transform = '';
-      });
-    }
-
-    function onScroll() {
-      var y = scrollContainer.scrollTop;
-      var delta = y - lastY;
-      lastY = y;
-
-      applyTilt(delta);
-
-      if (resetTimer) clearTimeout(resetTimer);
-      resetTimer = setTimeout(function () {
-        resetTilt();
-      }, 260);
-    }
-
-    scrollContainer.addEventListener('scroll', onScroll);
-  }
-
-  function setAbstractionMode(on) {
-    var panel = document.getElementById('immersive-abstraction');
-    var page = document.querySelector('.immersive-page');
-    if (!panel) return;
-    if (on) {
-      panel.classList.add('is-on');
-      panel.setAttribute('aria-hidden', 'false');
-      if (page) page.classList.add('is-abstracted');
-      startCaptionRotation();
-      if (currentSlug === SLUG_DANCE || currentSlug === SLUG_OVER) {
-        var mainScroll = document.getElementById('immersive-content');
-        var insetScroll = document.getElementById('abstraction-inset');
-        if (mainScroll && insetScroll) {
-          requestAnimationFrame(function () {
-            insetScroll.scrollTop = mainScroll.scrollTop;
-          });
-        }
-      }
-    } else {
-      if (currentSlug === SLUG_DANCE || currentSlug === SLUG_OVER) {
-        var mainScroll2 = document.getElementById('immersive-content');
-        var insetScroll2 = document.getElementById('abstraction-inset');
-        if (mainScroll2 && insetScroll2) {
-          mainScroll2.scrollTop = insetScroll2.scrollTop;
-        }
-      }
-      panel.classList.remove('is-on');
-      panel.setAttribute('aria-hidden', 'true');
-      if (page) page.classList.remove('is-abstracted');
-      stopCaptionRotation();
-      hideBackdrop();
-    }
-  }
-
-  function shuffleArray(arr) {
-    var a = arr.slice();
-    for (var i = a.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var t = a[i];
-      a[i] = a[j];
-      a[j] = t;
-    }
-    return a;
-  }
-
-  /**
-   * Returns a project slug string for caption routing (matches Sanity captions `project` field).
-   */
-  function normalizeCaptionProject(raw) {
-    if (raw === null || raw === undefined) return null;
-    if (typeof raw === 'object') {
-      if (raw.value !== undefined && raw.value !== null) return normalizeCaptionProject(raw.value);
-      if (raw.label !== undefined && raw.label !== null) return normalizeCaptionProject(raw.label);
-      return null;
-    }
-    var s = String(raw).trim();
-    if (!s) return null;
-    if (s === SLUG_DANCE || s === SLUG_NEEDLE || s === SLUG_OVER) return s;
-    // Presentation / Stega can add invisible characters so strict equality fails
-    var slugMatch = s.match(/(the-spontaneous-dance-falls|under-the-needles-eye|overlocked)/);
-    if (slugMatch) return slugMatch[1];
-    return null;
-  }
-
-  function normalizeCaptions(list) {
-    if (!Array.isArray(list)) return [];
-    return list.map(function (c) {
-      if (!c) return null;
-      var slug = normalizeCaptionProject(c.project);
-      if (!slug) return null;
-      var text = (c.text === null || c.text === undefined) ? '' : String(c.text);
-      if (!text.trim()) return null;
-      return { project: slug, text: text };
-    }).filter(Boolean);
-  }
-
-  function getCaptionsForCurrentContext() {
-    var fromSanity = window.SDV_CAPTIONS && Array.isArray(window.SDV_CAPTIONS) ? window.SDV_CAPTIONS : null;
-    var source =
-      fromSanity && fromSanity.length ? fromSanity : CAPTIONS_FALLBACK;
-    var normalized = normalizeCaptions(source);
-    var other = normalized.filter(function (c) { return c.project !== currentSlug; });
-    return shuffleArray(other);
-  }
-
-  function startCaptionRotation() {
-    stopCaptionRotation();
-    currentCaptionPool = getCaptionsForCurrentContext();
-    captionIndex = 0;
-    updateCaptionDisplay();
-    if (currentCaptionPool.length === 0) return;
-    captionInterval = setInterval(function () {
-      captionIndex = (captionIndex + 1) % currentCaptionPool.length;
-      updateCaptionDisplay();
-    }, 4000);
-  }
-
-  function updateCaptionDisplay() {
-    var btn = document.getElementById('caption-current');
-    if (!btn) return;
-    var c = currentCaptionPool[captionIndex];
-    if (c) {
-      btn.textContent = c.text;
-      btn.dataset.captionSlug = c.project;
-    } else {
-      btn.textContent = '';
-      btn.removeAttribute('data-caption-slug');
-    }
-  }
-
-  function stopCaptionRotation() {
-    if (captionInterval) {
-      clearInterval(captionInterval);
-      captionInterval = null;
-    }
-  }
-
-  function showBackdrop(targetSlug) {
-    var backdrop = document.getElementById('abstraction-backdrop');
-    var img = document.getElementById('abstraction-backdrop-img');
-    var video = document.getElementById('abstraction-backdrop-video');
-    var zoomBtn = document.getElementById('backdrop-zoom-btn');
-    var page = document.querySelector('.immersive-page');
-    if (!backdrop) return;
-    var slug = normalizeCaptionProject(targetSlug) || SLUG_DANCE;
-    var videoSrc = OVERLAY_VIDEO_BY_SLUG[slug];
-
-    backdrop.dataset.targetSlug = slug;
-    backdrop.removeAttribute('hidden');
-    if (zoomBtn) {
-      zoomBtn.dataset.targetSlug = slug;
-      zoomBtn.removeAttribute('hidden');
-    }
-    if (videoSrc && video) {
-      if (page) page.classList.add('backdrop-visible', 'backdrop-video');
-      if (img) img.style.display = 'none';
-      video.style.display = 'block';
-      video.loop = true;
-      video.muted = true;
-      video.playsInline = true;
-      video.src = getOverlayVideoUrl(assetUrl(videoSrc));
-      video.load();
-      video.play().catch(function () { });
-      video.addEventListener('canplay', function onCanPlay() {
-        video.removeEventListener('canplay', onCanPlay);
-        video.play().catch(function () { });
-      }, { once: true });
-    } else {
-      if (page) page.classList.add('backdrop-visible');
-      if (video) {
-        video.pause();
-        video.removeAttribute('src');
-        video.style.display = 'none';
-      }
-      if (img) {
-        img.style.display = '';
-        img.src = assetUrl(OVERLAY_IMAGE_BY_SLUG[slug] || OVERLAY_IMAGE_BY_SLUG[SLUG_NEEDLE]);
-      }
-    }
-  }
-
-  function hideBackdrop() {
-    var backdrop = document.getElementById('abstraction-backdrop');
-    var video = document.getElementById('abstraction-backdrop-video');
-    var zoomBtn = document.getElementById('backdrop-zoom-btn');
-    var page = document.querySelector('.immersive-page');
-    if (backdrop) backdrop.setAttribute('hidden', '');
-    if (zoomBtn) zoomBtn.setAttribute('hidden', '');
-    if (page) page.classList.remove('backdrop-visible', 'backdrop-video');
-    if (video) {
-      video.pause();
-      video.removeAttribute('src');
-    }
-  }
-
-  function homeProjectsList() {
-    return (window.SDV_HOME_PROJECTS && Array.isArray(window.SDV_HOME_PROJECTS)) ? window.SDV_HOME_PROJECTS : [];
-  }
-
-  function sanitizeHomeLineColor(raw) {
-    var s = raw == null ? '' : String(raw).trim();
-    if (!s) return '';
-    return /^#[0-9A-Fa-f]{6}$/.test(s) ? s : '';
-  }
-
-  function updateHomeProject() {
-    var img = document.getElementById('home-project-image');
-    var view = document.querySelector('.view--home');
-    var wrap = document.querySelector('.home-image-wrap');
-    var list = homeProjectsList();
-    var row = currentSlug ? list.find(function (p) { return p.slug === currentSlug; }) : null;
-
-    if (!img || !view || !wrap) return;
-
-    if (!row) {
-      if (currentSlug) currentSlug = '';
-      view.classList.add('is-home-idle');
-      wrap.classList.remove('is-project-selected');
-      img.setAttribute('hidden', '');
-      img.removeAttribute('src');
-      document.documentElement.style.setProperty('--home-line-accent', HOME_LINE_DEFAULT);
-      document.querySelectorAll('.home-project').forEach(function (btn) {
-        btn.classList.remove('is-active');
-      });
-      return;
-    }
-
-    view.classList.remove('is-home-idle');
-    wrap.classList.add('is-project-selected');
-    img.removeAttribute('hidden');
-    if (row.splashUrl) {
-      img.src = row.splashUrl;
-    } else {
-      img.src = assetUrl(OVERLAY_IMAGE_BY_SLUG[row.slug] || 'images/home/fall.jpg');
-    }
-    var lineCol =
-      sanitizeHomeLineColor(row.homeLineColor) || HOME_LINE_BY_CONTEXT[row.slug] || '';
-    document.documentElement.style.setProperty('--home-line-accent', lineCol || HOME_LINE_DEFAULT);
-
-    document.querySelectorAll('.home-project').forEach(function (btn) {
-      var s = btn.getAttribute('data-slug') || '';
-      btn.classList.toggle('is-active', s === currentSlug);
-    });
-  }
-
-  function getHomeMaterialsData() {
-    var all = (window.SDV_ALL_MATERIALS && Array.isArray(window.SDV_ALL_MATERIALS)) ? window.SDV_ALL_MATERIALS : [];
-    var bySlug = (window.SDV_PROJECT_MATERIALS && typeof window.SDV_PROJECT_MATERIALS === 'object') ? window.SDV_PROJECT_MATERIALS : {};
-    return { all: all, bySlug: bySlug };
-  }
-
-  function ensureProjectIconHosts() {
-    document.querySelectorAll('.home-project').forEach(function (btn) {
-      if (!btn.querySelector('.home-project-label')) {
-        var labelText = btn.textContent || '';
-        btn.textContent = '';
-        var labelSpan = document.createElement('span');
-        labelSpan.className = 'home-project-label';
-        labelSpan.textContent = labelText;
-        btn.appendChild(labelSpan);
-      }
-      if (btn.querySelector('.home-project-material-icons')) return;
-      var wrap = document.createElement('span');
-      wrap.className = 'home-project-material-icons';
-      wrap.setAttribute('aria-hidden', 'true');
-      btn.appendChild(wrap);
-    });
-  }
-
-  function renderHomeMaterialIcons(selectedKeys) {
-    ensureProjectIconHosts();
-    var data = getHomeMaterialsData();
-    var selected = new Set(selectedKeys || []);
-
-    document.querySelectorAll('.home-project').forEach(function (btn) {
-      var slug = btn.getAttribute('data-slug') || '';
-      var host = btn.querySelector('.home-project-material-icons');
-      if (!host) return;
-
-      if (!selected.size) {
-        host.innerHTML = '';
-        return;
-      }
-
-      var mats = (data.bySlug[slug] && Array.isArray(data.bySlug[slug].materials)) ? data.bySlug[slug].materials : [];
-      var html = '';
-      mats.forEach(function (m) {
-        if (!m || !m.key) return;
-        if (!selected.has(m.key)) return;
-        html += materialIconSvg(m.key);
-      });
-      host.innerHTML = html;
-    });
-  }
-
-  function renderHomeMaterialToggle() {
-    var host = document.getElementById('home-material-filter');
-    if (!host) return;
-
-    var data = getHomeMaterialsData();
-    if (!data.all.length) {
-      host.innerHTML = '';
-      return;
-    }
-
-    var storageKey = 'sdv.homeMaterials.selected';
-    var selected = new Set();
-    try {
-      var raw = localStorage.getItem(storageKey);
-      var parsed = raw ? JSON.parse(raw) : null;
-      if (Array.isArray(parsed)) {
-        parsed.forEach(function (k) { if (k) selected.add(String(k)); });
-      }
-    } catch (e) { }
-
-    var allowed = new Set(data.all.map(function (m) { return m.key; }));
-    Array.from(selected).forEach(function (k) { if (!allowed.has(k)) selected.delete(k); });
-
-    function labelForKey(key) {
-      var hit = data.all.find(function (m) { return m.key === key; });
-      return hit ? hit.label : key;
-    }
-
-    function selectedSummary() {
-      if (!selected.size) return 'None selected';
-      return data.all
-        .filter(function (m) { return selected.has(m.key); })
-        .map(function (m) { return m.label; })
-        .join(', ');
-    }
-
-    function rerender() {
-      renderHomeMaterialIcons(Array.from(selected));
-      if (host.dataset.bound === '1') {
-        host.querySelectorAll('.home-material-btn').forEach(function (btn) {
-          btn.classList.toggle('is-on', selected.has(btn.dataset.materialKey));
-          btn.setAttribute('aria-pressed', selected.has(btn.dataset.materialKey) ? 'true' : 'false');
-        });
-        var status = host.querySelector('.home-material-status');
-        if (status) status.textContent = selectedSummary();
-      }
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(Array.from(selected)));
-      } catch (e) { }
-    }
-
-    if (host.dataset.bound === '1') {
-      rerender();
-      return;
-    }
-    host.dataset.bound = '1';
-
-    var html = '' +
-      '<div class="home-material-meta">' +
-      '  <div class="home-material-title">Materials</div>' +
-      '  <div class="home-material-status" aria-live="polite"></div>' +
-      '</div>' +
-      '<div class="home-material-row" role="group" aria-label="Filter by material">';
-    data.all.forEach(function (m) {
-      html += (
-        '<button type="button" class="home-material-btn" data-material-key="' + m.key + '" aria-pressed="false" title="' +
-        String(m.label).replace(/"/g, '&quot;') + '" aria-label="' + String(m.label).replace(/"/g, '&quot;') + '">' +
-        materialIconSvg(m.key) +
-        '</button>'
-      );
-    });
-    html += '</div>';
-    host.innerHTML = html;
-
-    host.addEventListener('mouseover', function (e) {
-      var t = e.target;
-      var btn = t && t.closest ? t.closest('.home-material-btn') : null;
-      if (!btn) return;
-      var key = btn.dataset.materialKey;
-      if (!key) return;
-      var status = host.querySelector('.home-material-status');
-      if (status) status.textContent = (selected.has(key) ? 'Selected: ' : 'Filter: ') + labelForKey(key);
-    });
-
-    host.addEventListener('mouseleave', function () {
-      var status = host.querySelector('.home-material-status');
-      if (status) status.textContent = selectedSummary();
-    });
-
-    host.addEventListener('focusin', function (e) {
-      var t = e.target;
-      var btn = t && t.closest ? t.closest('.home-material-btn') : null;
-      if (!btn) return;
-      var key = btn.dataset.materialKey;
-      if (!key) return;
-      var status = host.querySelector('.home-material-status');
-      if (status) status.textContent = (selected.has(key) ? 'Selected: ' : 'Filter: ') + labelForKey(key);
-    });
-
-    host.addEventListener('focusout', function () {
-      var status = host.querySelector('.home-material-status');
-      if (status) status.textContent = selectedSummary();
-    });
-
-    host.addEventListener('click', function (e) {
-      var t = e.target;
-      var btn = t && t.closest ? t.closest('.home-material-btn') : null;
-      if (!btn) return;
-      var key = btn.dataset.materialKey;
-      if (!key) return;
-      if (selected.has(key)) selected.delete(key); else selected.add(key);
-      rerender();
-    });
-
-    rerender();
-  }
-
-  function initHomePage() {
-    var homeImg = document.getElementById('home-project-image');
-    if (!homeImg) return;
-
-    var nav = document.querySelector('.home-projects');
-    if (nav && nav.dataset.delegationBound !== '1') {
-      nav.dataset.delegationBound = '1';
-      nav.addEventListener('click', function (e) {
-        var btn = e.target && e.target.closest ? e.target.closest('.home-project') : null;
-        if (!btn) return;
-        var s = btn.getAttribute('data-slug');
-        if (s) currentSlug = s;
-        updateHomeProject();
-      });
-    }
-
-    function goToCurrentProject() {
-      if (!currentSlug) return;
-      window.location.href = withPreviewQuery('project/' + currentSlug + '/');
-    }
-
-    document.querySelector('.home-zoom-btn')?.addEventListener('click', function () {
-      goToCurrentProject();
-    });
-
-    var imageWrap = document.querySelector('.home-image-wrap');
-    if (imageWrap && imageWrap.dataset.openProjectBound !== '1') {
-      imageWrap.dataset.openProjectBound = '1';
-      imageWrap.addEventListener('click', function () {
-        goToCurrentProject();
-      });
-    }
-
-    updateHomeProject();
-    renderHomeMaterialToggle();
-  }
-
-  function bindImmersiveChromeOnce() {
-    var root = document.querySelector('.immersive-page');
-    if (!root || root.dataset.appImmersiveUiBound === '1') return;
-    root.dataset.appImmersiveUiBound = '1';
-
-    var pathSlug = immersiveSlugFromPath();
-    if (pathSlug) currentSlug = pathSlug;
-
-    initProject2Keyboard();
-
-    setAbstractionMode(false);
-    hideBackdrop();
-    startCaptionRotation();
-
-    bindImmersiveChromeDock();
-
-    document.getElementById('abstraction-btn')?.addEventListener('click', function () {
-      var panel = document.getElementById('immersive-abstraction');
-      var isOn = panel && panel.classList.contains('is-on');
-      setAbstractionMode(!isOn);
-    });
-
-    document.getElementById('caption-current')?.addEventListener('click', function () {
-      var slug = this.dataset.captionSlug;
-      if (!slug) return;
-      showBackdrop(slug);
-    });
-
-    document.getElementById('abstraction-backdrop')?.addEventListener('click', function () {
-      var slug = this.dataset.targetSlug || currentSlug;
-      hideBackdrop();
-      window.location.href = withPreviewQuery('../../project/' + slug + '/');
-    });
-
-    document.getElementById('backdrop-zoom-btn')?.addEventListener('click', function (e) {
-      e.preventDefault();
-      var slug = this.dataset.targetSlug || currentSlug;
-      hideBackdrop();
-      window.location.href = withPreviewQuery('../../project/' + slug + '/');
-    });
-  }
-
-  function onImmersiveReady(ev) {
-    var slug = (ev && ev.detail && ev.detail.slug) ? String(ev.detail.slug) : immersiveSlugFromPath();
-    if (!document.querySelector('.immersive-page')) return;
-    currentSlug = slug || currentSlug;
-    document.querySelectorAll('.immersive-story').forEach(function (el) {
-      el.removeAttribute('data-bound');
-    });
-    document.querySelectorAll('.immersive-page .immersive-story__image-wrap').forEach(function (w) {
-      w.removeAttribute('data-story-swipe-bound');
-    });
-    initImmersiveInteractions(slug);
-    stopCaptionRotation();
-    startCaptionRotation();
   }
 
   function initImmersivePage() {
-    if (!document.querySelector('.immersive-page')) return;
-    bindImmersiveChromeOnce();
+    var root = document.querySelector('.immersive-page');
+    if (!root) return;
+    var pathSlug = immersiveSlugFromPath();
+    if (pathSlug) currentImmersiveSlug = pathSlug;
+    initFlyer();
   }
 
-  function initProjectSplitFocusToggle() {
-    var split = document.getElementById('project-split');
-    if (!split) return;
+  window.addEventListener('sdv:immersive-ready', function (ev) {
+    var slug = (ev && ev.detail && ev.detail.slug) ? String(ev.detail.slug) : immersiveSlugFromPath();
+    currentImmersiveSlug = slug || currentImmersiveSlug;
+    prefetchFlyerImages(flyerImages());
+    document.querySelectorAll('.immersive-flyer[data-flyer-root]').forEach(function (el) {
+      el.removeAttribute('data-flyer-bound');
+    });
+    initFlyer();
+  });
 
-    var view = document.querySelector('.view--project');
-    var controls = document.querySelector('.project-zoom-controls');
-    if (!controls) return;
-
-    var up = controls.querySelector('[data-split-shift="up"]');
-    var down = controls.querySelector('[data-split-shift="down"]');
-    if (!up || !down) return;
-
-    if (controls.dataset.bound === '1') return;
-    controls.dataset.bound = '1';
-
-    var MODES = ['text', 'balanced', 'images'];
-
-    function normalizeMode(raw) {
-      var m = String(raw || '').toLowerCase();
-      if (MODES.indexOf(m) !== -1) return m;
-      return 'balanced';
-    }
-
-    function setMode(mode) {
-      var m = normalizeMode(mode);
-      split.dataset.split = m;
-      if (view) view.dataset.split = m;
-      up.disabled = m === 'text';
-      down.disabled = m === 'images';
-    }
-
-    function shift(dir) {
-      if (!isMobileMode()) return;
-      var current = normalizeMode(split.dataset.split);
-      var idx = MODES.indexOf(current);
-      if (idx === -1) idx = 1;
-      var next = dir === 'up' ? Math.max(0, idx - 1) : Math.min(MODES.length - 1, idx + 1);
-      setMode(MODES[next]);
-    }
-
-    up.addEventListener('click', function () { shift('up'); });
-    down.addEventListener('click', function () { shift('down'); });
-
-    function isMobileMode() {
-      return !!(window.matchMedia && window.matchMedia('(max-width: 599px)').matches);
-    }
-
-    function syncEnabledState() {
-      var mobile = isMobileMode();
-      up.disabled = !mobile || normalizeMode(split.dataset.split) === 'text';
-      down.disabled = !mobile || normalizeMode(split.dataset.split) === 'images';
-      if (!mobile) {
-        setMode('balanced');
-      } else {
-        setMode(normalizeMode(split.dataset.split || 'balanced'));
-      }
-    }
-
-    if (window.matchMedia) {
-      var mq = window.matchMedia('(max-width: 599px)');
-      if (mq && typeof mq.addEventListener === 'function') {
-        mq.addEventListener('change', syncEnabledState);
-      } else if (mq && typeof mq.addListener === 'function') {
-        mq.addListener(syncEnabledState);
-      }
-    }
-
-    setMode('balanced');
-    syncEnabledState();
-  }
-
-  function onHomeReady() {
-    var list = homeProjectsList();
-    if (!list.length) {
-      currentSlug = '';
-      updateHomeProject();
-      renderHomeMaterialToggle();
-      return;
-    }
-    if (currentSlug && !list.some(function (p) { return p.slug === currentSlug; })) {
-      currentSlug = '';
-    }
-    updateHomeProject();
-    renderHomeMaterialToggle();
-  }
+  /* --- Boot --- */
 
   document.addEventListener('DOMContentLoaded', function () {
-    initHomePage();
-    initImmersivePage();
+    initHomeInfoToggle();
+    renderHomeMaterialToggle();
+    initProjectPublicationGate();
     initProjectSplitFocusToggle();
-  });
-
-  window.addEventListener('sdv:home', onHomeReady);
+    initImmersivePage();
 
   window.addEventListener('sdv:materials', function () {
-    if (!document.getElementById('home-project-image')) return;
     renderHomeMaterialToggle();
   });
 
-  window.addEventListener('sdv:captions', function () {
-    if (!document.querySelector('.immersive-page')) return;
-    startCaptionRotation();
-  });
+    window.addEventListener('sdv:home', function () {
+      renderHomeMaterialToggle();
+    });
 
-  window.addEventListener('sdv:immersive-ready', onImmersiveReady);
+    bindHomeIconsViewportSync();
+
+    window.addEventListener('sdv:lightbox-open', function (ev) {
+      var d = ev && ev.detail ? ev.detail : {};
+      openLightbox(d.urls || [], d.index || 0);
+    });
+
+    bindLightboxGlobalKeys();
+  });
 })();
+

@@ -1,0 +1,7 @@
+/**
+ * Match live-site paragraph spacing inside Portable Text fields.
+ * Enter = new block (.pt-block) with gap; Shift+Enter = line break inside one block (no gap).
+ */
+.pt-editable > .pt-block:not(.pt-list-item) {
+  margin-bottom: 0.75rem;
+}

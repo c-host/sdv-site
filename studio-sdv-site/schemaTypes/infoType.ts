@@ -2,14 +2,14 @@ import {defineField, defineType} from 'sanity'
 
 export const infoType = defineType({
   name: 'info',
-  title: 'Info Page',
+  title: 'Bio panel',
   type: 'document',
   fields: [
     defineField({
       name: 'body',
       title: 'Bio',
       description:
-        'Rich text editor with restricted formatting (bold, italic, strike, links, quotes, bulleted/numbered lists).',
+        'Enter starts a new paragraph (with space below). Shift+Enter adds a line break inside the same paragraph (no extra space). Use Presentation preview to confirm spacing on the live site.',
       type: 'array',
       of: [
         defineField({
@@ -51,67 +51,10 @@ export const infoType = defineType({
       ],
       validation: (Rule) => Rule.required(),
     }),
-    defineField({
-      name: 'press',
-      title: 'Press',
-      type: 'array',
-      of: [
-        defineField({
-          name: 'item',
-          title: 'Press Item',
-          type: 'object',
-          fields: [
-            defineField({
-              name: 'title',
-              title: 'Title',
-              type: 'string',
-              validation: (Rule) => Rule.required(),
-            }),
-            defineField({
-              name: 'url',
-              title: 'URL',
-              type: 'url',
-            }),
-            defineField({
-              name: 'description',
-              title: 'Description',
-              type: 'text',
-              rows: 3,
-            }),
-          ],
-          preview: {
-            select: {title: 'title', subtitle: 'url'},
-          },
-        }),
-      ],
-    }),
-    defineField({
-      name: 'cv',
-      title: 'CV',
-      type: 'object',
-      fields: [
-        defineField({
-          name: 'label',
-          title: 'Link Label',
-          type: 'string',
-        }),
-        defineField({
-          name: 'file',
-          title: 'PDF File',
-          type: 'file',
-          options: {accept: '.pdf'},
-        }),
-        defineField({
-          name: 'url',
-          title: 'URL (Optional)',
-          type: 'url',
-        }),
-      ],
-    }),
   ],
   preview: {
     prepare() {
-      return {title: 'Info Page'}
+      return {title: 'Bio panel'}
     },
   },
 })

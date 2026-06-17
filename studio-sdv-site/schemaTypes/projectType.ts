@@ -1,11 +1,10 @@
 import {defineField, defineType} from 'sanity'
 import {portableTextBlock} from './sharedPortableText'
+import {materialKeyArrayField} from './materialOptions'
 
-const PROJECT_SLUG_OPTIONS = [
-  {title: 'The Spontaneous Dance Falls', value: 'the-spontaneous-dance-falls'},
-  {title: "Under the Needle's Eye", value: 'under-the-needles-eye'},
-  {title: 'Overlocked', value: 'overlocked'},
-]
+type TimelinePanelValue = {
+  isPublication?: boolean
+}
 
 export const projectType = defineType({
   name: 'project',
@@ -13,46 +12,27 @@ export const projectType = defineType({
   type: 'document',
   fields: [
     defineField({
-      name: 'slug',
-      title: 'Project Slug',
-      type: 'string',
-      options: {list: PROJECT_SLUG_OPTIONS},
-      readOnly: true,
-      validation: (Rule) => Rule.required(),
-    }),
-    defineField({
-      name: 'immersive_enabled',
-      title: 'Enable immersive link',
-      type: 'boolean',
-      initialValue: true,
-    }),
-    defineField({
-      name: 'home_materials',
-      title: 'Home materials',
-      type: 'array',
-      of: [{type: 'string'}],
-      options: {
-        list: ['A/V', 'Archive', 'Glass', 'Metal', 'Objects', 'Performance', 'Synthetic', 'Textile'],
-      },
-    }),
-    defineField({
       name: 'header_title',
       title: 'Project title',
       type: 'string',
       validation: (Rule) => Rule.required(),
     }),
     defineField({
-      name: 'homeLineColor',
-      title: 'Home line color',
-      description:
-        'Hex color for the home crosshair and center frame when this project is selected (e.g. #7e7777). Used when no color is set on the home page entry.',
-      type: 'string',
-      validation: (Rule) =>
-        Rule.custom((val) => {
-          if (val == null || !String(val).trim()) return true
-          return /^#[0-9A-Fa-f]{6}$/.test(String(val).trim()) ? true : 'Use #RRGGBB'
-        }),
+      name: 'slug',
+      title: 'URL slug',
+      description: 'Used in /project/your-slug/ and /immersive/your-slug/. Auto-generated from title.',
+      type: 'slug',
+      options: {
+        source: 'header_title',
+        maxLength: 96,
+      },
+      validation: (Rule) => Rule.required(),
     }),
+    defineField(materialKeyArrayField(
+      'home_materials',
+      'Home and project materials',
+      'Icons selected here are shown on the home page when this project is selected, and below the Material composition & elements list on the project page.',
+    )),
     defineField({
       name: 'body',
       title: 'Overview',
@@ -64,7 +44,9 @@ export const projectType = defineType({
     }),
     defineField({
       name: 'materials',
-      title: 'Materials',
+      title: 'Material composition & elements',
+      description:
+        'Free-text list shown as bullets on the project page. Material icons below this list come from Home and project materials.',
       type: 'array',
       of: [{type: 'string'}],
     }),
@@ -88,9 +70,19 @@ export const projectType = defineType({
     defineField({
       name: 'falls',
       title: 'Timeline panels',
-      description: 'Each panel is a tab with its own images. At least one panel is required.',
+      description:
+        'Each panel is a tab with its own images. At least one panel is required. Mark one as the publication tab to enable immersive view.',
       type: 'array',
-      validation: (Rule) => Rule.required().min(1),
+      validation: (Rule) =>
+        Rule.required()
+          .min(1)
+          .custom((falls) => {
+            if (!Array.isArray(falls)) return true
+            const pubCount = (falls as TimelinePanelValue[]).filter(
+              (f) => f?.isPublication === true,
+            ).length
+            return pubCount <= 1 ? true : 'Only one timeline panel can be marked as the publication tab.'
+          }),
       of: [
         defineField({
           name: 'fall',
@@ -100,8 +92,17 @@ export const projectType = defineType({
             defineField({
               name: 'label',
               title: 'Tab label',
-              description: 'Shown only on the timeline tab (not repeated below).',
+              description:
+                'Shown only on the timeline tab (not repeated below). Label "Publication" (any case) is also recognized as the publication tab when isPublication is not set.',
               type: 'string',
+            }),
+            defineField({
+              name: 'isPublication',
+              title: 'Publication tab',
+              description:
+                'Marks this panel as the publication tab. Enables the immersive magnifier and feeds immersive viewer images.',
+              type: 'boolean',
+              initialValue: false,
             }),
             defineField({
               name: 'type',
@@ -130,7 +131,7 @@ export const projectType = defineType({
     }),
   ],
   preview: {
-    select: {title: 'header_title', subtitle: 'slug'},
+    select: {title: 'header_title', subtitle: 'slug.current'},
     prepare({title, subtitle}) {
       return {
         title: title || 'Untitled project',

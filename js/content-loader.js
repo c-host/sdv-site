@@ -1,9 +1,8 @@
 /**
- * Fetches Sanity content for static HTML pages, injects DOM where needed, and wires Presentation
- * visual editing (history + mutation refetch). Depends on sdv-shared.js (window.SDV).
- * Globals set: SDV_HOME_PROJECTS, SDV_PROJECT_MATERIALS, SDV_ALL_MATERIALS, SDV_CAPTIONS,
- * SDV_IMMERSIVE_SLIDER (Needle immersive only). Dispatches: sdv:home, sdv:materials, sdv:captions,
- * sdv:immersive-ready (detail.slug).
+ * Fetches Sanity content, updates the DOM, and wires Presentation visual editing.
+ * Depends on sdv-shared.js (window.SDV).
+ * Globals: SDV_HOME_PROJECTS, SDV_PROJECT_MATERIALS, SDV_ALL_MATERIALS, SDV_FLYER_IMAGES.
+ * Events: sdv:home, sdv:materials, sdv:immersive-ready, sdv:project-tab.
  */
 (function () {
   'use strict';
@@ -40,7 +39,6 @@
   var SDV_PREVIEW = {
     projectsBySlug: {},
     info: null,
-    captions: null,
     homeProjects: null,
   };
 
@@ -75,13 +73,50 @@
   var publicSanityClient = null;
   var visualEditingSetupPromise = null;
 
-  /** Pin versions to studio-sdv-site/package.json (@sanity/client, react, visual-editing). */
+  /** Pin @sanity/client versions to studio-sdv-site/package.json. */
   var SANITY_CLIENT_ESM = 'https://esm.sh/@sanity/client@7.18.0?bundle';
-  var SANITY_VISUAL_EDITING_ESM =
-    'https://esm.sh/@sanity/visual-editing@5.3.1?bundle&deps=react@19.2.4,react-dom@19.2.4,styled-components@6.1.18,@sanity/client@7.18.0';
+  var STEGA_CLEAN_ESM = 'https://esm.sh/@sanity/client@7.18.0/stega?bundle';
 
   function dynamicImport(url) {
     return Function('u', 'return import(u)')(url);
+  }
+
+  var stegaCleanFn = null;
+  var stegaCleanPromise = null;
+
+  /** Remove stega metadata from URL/navigation strings (not body copy). */
+  function loadStegaClean() {
+    if (!isPreviewEnabled()) return Promise.resolve(null);
+    if (stegaCleanFn) return Promise.resolve(stegaCleanFn);
+    if (!stegaCleanPromise) {
+      stegaCleanPromise = dynamicImport(STEGA_CLEAN_ESM)
+        .then(function (mod) {
+          stegaCleanFn = mod.stegaClean || (mod.default && mod.default.stegaClean);
+          return stegaCleanFn;
+        })
+        .catch(function () {
+          return null;
+        });
+    }
+    return stegaCleanPromise;
+  }
+
+  function cleanStegaText(value) {
+    if (value == null) return '';
+    if (typeof value !== 'string') value = String(value);
+    if (!isPreviewEnabled()) return value;
+    if (stegaCleanFn) {
+      try {
+        return stegaCleanFn(value);
+      } catch (e) {
+        return value;
+      }
+    }
+    return value.replace(/[\u200B-\u200C\u200D\uFEFF]/g, '');
+  }
+
+  if (isPreviewEnabled()) {
+    loadStegaClean();
   }
 
   function invalidatePreviewCaches(changedDoc) {
@@ -89,7 +124,6 @@
     if (!d._type) {
       SDV_PREVIEW.projectsBySlug = {};
       SDV_PREVIEW.info = null;
-      SDV_PREVIEW.captions = null;
       SDV_PREVIEW.homeProjects = null;
       return;
     }
@@ -99,12 +133,14 @@
     }
     if (d._type === 'homePage') SDV_PREVIEW.homeProjects = null;
     if (d._type === 'info') SDV_PREVIEW.info = null;
-    if (d._type === 'captions') SDV_PREVIEW.captions = null;
     if (d._type === 'siteTypography' || d._type === 'fontUpload') {
       try {
         var ty = document.getElementById('sdv-typography');
         if (ty) ty.remove();
       } catch (e) { }
+    }
+    if (d._type === 'siteMaterials') {
+      materialCatalogPromise = null;
     }
   }
 
@@ -118,11 +154,11 @@
     if (isPreviewEnabled()) resetPreviewSanityClient();
     preservePreviewLinks();
     await Promise.all([
+      loadMaterialCatalog().catch(function () { }),
       loadInfoLinks().catch(function () { }),
       loadProject().catch(function () { }),
       loadHome().catch(function () { }),
       loadHomeMaterials().catch(function () { }),
-      loadCaptions().catch(function () { }),
       loadImmersiveContent().catch(function () { }),
       loadTypography().catch(function () { }),
     ]);
@@ -190,8 +226,7 @@
   }
 
   /**
-   * Published reads via Sanity CDN (single fetch). Avoids loading @sanity/client from esm.sh
-   * (hundreds of tiny module requests). Draft/preview with token still uses the full client.
+   * Published reads via Sanity CDN. Draft/preview with token uses the full client.
    */
   async function sanityFetchCdn(query, params) {
     var apiVer =
@@ -213,6 +248,15 @@
     });
     if (!res.ok) {
       var msg = (json && json.message) || res.statusText || String(res.status);
+      if (res.status === 403) {
+        throw new Error(
+          'Sanity API blocked this origin (CORS). Add ' +
+            window.location.origin +
+            ' under Project → API → CORS origins in sanity.io/manage. (' +
+            msg +
+            ')',
+        );
+      }
       throw new Error(msg);
     }
     return json.result;
@@ -226,10 +270,46 @@
     return client.fetch(query, params || {});
   }
 
+  /** Local visual-editing bundle (studio-sdv-site: npm run build:visual-editing). */
+  function getVisualEditingBundleUrl() {
+    try {
+      return new URL('sanity-visual-editing.bundle.js', new URL(rootPrefix() + 'js/', window.location.href)).href;
+    } catch (e) {
+      return rootPrefix() + 'js/sanity-visual-editing.bundle.js';
+    }
+  }
+
+  function loadVisualEditingModule() {
+    if (window.SDVVisualEditing && typeof window.SDVVisualEditing.enableVisualEditing === 'function') {
+      return Promise.resolve(window.SDVVisualEditing);
+    }
+    if (window.SDVVisualEditingReady && typeof window.SDVVisualEditingReady.then === 'function') {
+      return window.SDVVisualEditingReady;
+    }
+    return new Promise(function (resolve, reject) {
+      var url = getVisualEditingBundleUrl();
+      var s = document.createElement('script');
+      s.src = url;
+      s.async = false;
+      s.setAttribute('data-sdv-ve-bundle', '1');
+      s.onload = function () {
+        if (window.SDVVisualEditing && typeof window.SDVVisualEditing.enableVisualEditing === 'function') {
+          resolve(window.SDVVisualEditing);
+          return;
+        }
+        reject(new Error('Unable to load enableVisualEditing'));
+      };
+      s.onerror = function () {
+        reject(new Error('Visual editing bundle failed to load'));
+      };
+      document.head.appendChild(s);
+    });
+  }
+
   async function setupVisualEditingBridge() {
     if (!isPreviewEnabled()) return;
     if (visualEditingSetupPromise) return visualEditingSetupPromise;
-    visualEditingSetupPromise = dynamicImport(SANITY_VISUAL_EDITING_ESM)
+    visualEditingSetupPromise = loadVisualEditingModule()
       .then(function (mod) {
         var enable = mod.enableVisualEditing || (mod.default && mod.default.enableVisualEditing);
         if (!enable) throw new Error('Unable to load enableVisualEditing');
@@ -300,6 +380,10 @@
     return visualEditingSetupPromise;
   }
 
+  if (isPreviewEnabled()) {
+    setupVisualEditingBridge();
+  }
+
   var withPreviewQuery = SDV.withPreviewQuery;
 
   function preservePreviewLinks() {
@@ -350,7 +434,7 @@
 
       return children.map(function (child) {
         if (!child || child._type !== 'span') return '';
-        var text = escapeHtml(String(child.text || ''));
+        var text = escapeHtml(String(child.text || '')).replace(/\n/g, '<br>');
         var marks = Array.isArray(child.marks) ? child.marks.slice() : [];
 
         marks.forEach(function (mark) {
@@ -394,7 +478,7 @@
       if (style === 'h2') out.push('<h2>' + itemText + '</h2>');
       else if (style === 'h3') out.push('<h3>' + itemText + '</h3>');
       else if (style === 'blockquote') out.push('<blockquote><p>' + itemText + '</p></blockquote>');
-      else out.push('<p>' + itemText + '</p>');
+      else out.push('<p>' + (itemText ? itemText : '<br>') + '</p>');
     });
 
     flushList();
@@ -416,44 +500,53 @@
   }
 
   var slugifyKey = SDV.slugifyKey;
-  var canonicalMaterialKey = SDV.canonicalMaterialKey;
+  var normalizeProjectSlug = SDV.normalizeProjectSlug;
+  var resolveMaterialKey = SDV.resolveMaterialKey;
   var canonicalMaterialLabel = SDV.canonicalMaterialLabel;
   var renderMaterialIcons = SDV.renderMaterialIcons;
+  var isPublicationFall = SDV.isPublicationFall;
+  var findPublicationPanel = SDV.findPublicationPanel;
+  var projectHasPublicationImmersive = SDV.projectHasPublicationImmersive;
 
-  function extractMaterialKeysForProject(data) {
-    var sourceList = Array.isArray(data && data.home_materials)
-      ? data.home_materials
-      : (Array.isArray(data && data.materials) ? data.materials : []);
+  function homeMaterialKeysForProject(data) {
     var keys = [];
     var seen = {};
-    sourceList.forEach(function (labelRaw) {
+    var home = Array.isArray(data && data.home_materials) ? data.home_materials : [];
+    home.forEach(function (labelRaw) {
       if (labelRaw === null || labelRaw === undefined) return;
       var label = String(labelRaw).trim();
       if (!label) return;
-      var rawKey = slugifyKey(label);
-      if (!rawKey) return;
-      var key = canonicalMaterialKey(rawKey, label);
+      var key = resolveMaterialKey(label);
       if (!key || seen[key]) return;
       seen[key] = 1;
       keys.push(key);
+    });
+
+    var catalogOrder = {};
+    if (SDV.getMaterialCatalogEntries) {
+      SDV.getMaterialCatalogEntries().forEach(function (entry, i) {
+        if (entry && entry.key) catalogOrder[entry.key] = i;
+      });
+    }
+    keys.sort(function (a, b) {
+      var ia = catalogOrder[a] != null ? catalogOrder[a] : 1e9;
+      var ib = catalogOrder[b] != null ? catalogOrder[b] : 1e9;
+      return ia - ib;
     });
     return keys;
   }
 
   function normalizeSanityProject(data) {
     var d = data || {};
-    var hc = d.homeLineColor != null ? String(d.homeLineColor).trim() : '';
     return {
-      slug: d.slug || '',
-      immersive_enabled: d.immersive_enabled,
+      slug: normalizeProjectSlug(cleanStegaText(d.slug)),
       home_materials: Array.isArray(d.home_materials) ? d.home_materials : [],
-      header_title: d.header_title || '',
+      header_title: cleanStegaText(d.header_title || ''),
       body: d.body || '',
       materials: Array.isArray(d.materials) ? d.materials : [],
       links: Array.isArray(d.links) ? d.links : [],
       gallery: Array.isArray(d.gallery) ? d.gallery : [],
       falls: Array.isArray(d.falls) ? d.falls : [],
-      homeLineColor: hc,
       _updatedAt: d._updatedAt || '',
     };
   }
@@ -462,7 +555,18 @@
   function effectiveTimelinePanels(data) {
     var d = data || {};
     var falls = Array.isArray(d.falls) ? d.falls : [];
-    if (falls.length) return falls;
+    if (falls.length) {
+      return falls.map(function (fall) {
+        var f = fall || {};
+        return {
+          label: f.label,
+          type: f.type,
+          details: f.details,
+          isPublication: isPublicationFall(f),
+          images: Array.isArray(f.images) ? f.images : [],
+        };
+      });
+    }
     var gallery = Array.isArray(d.gallery) ? d.gallery : [];
     if (!gallery.length) return [];
     return gallery.map(function (img, i) {
@@ -470,6 +574,7 @@
         label: 'Panel ' + (i + 1),
         type: '',
         details: '',
+        isPublication: false,
         images: [img],
       };
     });
@@ -489,19 +594,7 @@
   function normalizeSanityInfo(data) {
     var d = data || {};
     return {
-      data: {
-        press: Array.isArray(d.press) ? d.press : [],
-        cv: d.cv || {},
-        _updatedAt: d._updatedAt || '',
-      },
       body: d.body || '',
-    };
-  }
-
-  function normalizeSanityCaptions(data) {
-    var d = data || {};
-    return {
-      captions: Array.isArray(d.items) ? d.items : [],
       _updatedAt: d._updatedAt || '',
     };
   }
@@ -544,13 +637,34 @@
     return isAbs ? s : (prefix + s);
   }
 
+  var SYSTEM_UI_FALLBACK =
+    'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
   var SYSTEM_FONT_STACKS = {
-    'system-ui':
-      'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    'system-ui': SYSTEM_UI_FALLBACK,
+    inter: '"Inter", ' + SYSTEM_UI_FALLBACK,
+    'source-sans-3': '"Source Sans 3", ' + SYSTEM_UI_FALLBACK,
+    'ibm-plex-sans': '"IBM Plex Sans", ' + SYSTEM_UI_FALLBACK,
+    'open-sans': '"Open Sans", ' + SYSTEM_UI_FALLBACK,
+    'noto-sans': '"Noto Sans", ' + SYSTEM_UI_FALLBACK,
     georgia: 'Georgia, "Times New Roman", Times, serif',
     times: '"Times New Roman", Times, Georgia, serif',
     palatino: 'Palatino, "Palatino Linotype", "Book Antiqua", serif',
     mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+  };
+
+  /** Google Fonts CSS URLs (SIL/OFL families). Injected only when a preset is selected. */
+  var WEB_FONT_IMPORTS = {
+    inter:
+      'https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap',
+    'source-sans-3':
+      'https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap',
+    'ibm-plex-sans':
+      'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap',
+    'open-sans':
+      'https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap',
+    'noto-sans':
+      'https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap',
   };
 
   function fontFormatFromUrl(url) {
@@ -582,7 +696,12 @@
   function resolveFontRole(choice, faceSink) {
     var fallback = SYSTEM_FONT_STACKS['system-ui'];
     if (!choice || choice.source === 'system' || !choice.source) {
-      var preset = choice && choice.systemPreset ? String(choice.systemPreset) : 'system-ui';
+      var preset = choice && choice.systemPreset ? String(choice.systemPreset) : 'inter';
+      var importUrl = WEB_FONT_IMPORTS[preset];
+      if (faceSink && importUrl && !faceSink.seen['gf-' + preset]) {
+        faceSink.seen['gf-' + preset] = true;
+        faceSink.css += '@import url("' + importUrl + '");';
+      }
       return SYSTEM_FONT_STACKS[preset] || fallback;
     }
     var ref = choice.fontRef;
@@ -621,7 +740,6 @@
     var prose = resolveFontRole(doc && doc.prose, sink);
     var strong = resolveFontRole(doc && doc.strongUi, sink);
     var light = resolveFontRole(doc && doc.lightUi, sink);
-    var accent = resolveFontRole(doc && doc.accent, sink);
     return (
       sink.css +
       ':root{--font:' +
@@ -632,8 +750,6 @@
       strong +
       ';--font-light:' +
       light +
-      ';--font-accent:' +
-      accent +
       ';}'
     );
   }
@@ -645,8 +761,7 @@
           'baseUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
           'prose{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
           'strongUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
-          'lightUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
-          'accent{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}}' +
+          'lightUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}}' +
           '}',
       );
       if (!doc) {
@@ -663,7 +778,7 @@
       }
       el.textContent = css;
     } catch (e) {
-      // Keep stylesheet defaults
+      /* Typography unavailable; keep stylesheet defaults. */
     }
   }
 
@@ -671,168 +786,53 @@
     window.dispatchEvent(new CustomEvent('sdv:immersive-ready', { detail: { slug: slug || '' } }));
   }
 
-  function segmentType(seg) {
-    if (!seg) return '';
-    return String(seg._type || seg.type || '');
-  }
-
-  function buildLawLayoutHtml(paragraphs, heading, prefix) {
-    var h = '<div class="law-layout"><div class="law-text">';
-    if (heading) {
-      h += '<h2 class="law-heading">' + escapeHtml(heading) + '</h2>';
-    }
-    (paragraphs || []).forEach(function (para) {
-      h += '<p>';
-      var segs = Array.isArray(para && para.segments) ? para.segments : [];
-      segs.forEach(function (seg) {
-        var st = segmentType(seg);
-        if (st === 'lawTextSegment') {
-          var t = String(seg.text || '').replace(/\s+/g, ' ').trim();
-          if (t) h += escapeHtml(t);
-        } else if (st === 'lawFragmentSegment') {
-          var imgSrc = resolveImageSrc(seg.image, prefix);
-          var bt = String(seg.buttonText || '').replace(/\s+/g, ' ').trim();
-          h +=
-            '<button type="button" class="law-fragment" data-image="' +
-            escapeAttr(imgSrc) +
-            '">' +
-            escapeHtml(bt) +
-            '</button><span class="law-image-inline"></span>';
-        }
+  function preloadImmersiveImages(urls) {
+    if (!Array.isArray(urls) || !urls.length) return;
+    var seen = {};
+    urls.forEach(function (displayUrl) {
+      if (!displayUrl || seen[displayUrl]) return;
+      seen[displayUrl] = 1;
+      var previewUrl = SDV.immersiveImagePreviewUrl(displayUrl);
+      [previewUrl, displayUrl].forEach(function (u) {
+        if (!u) return;
+        var link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = u;
+        document.head.appendChild(link);
       });
-      h += '</p>';
     });
-    h += '</div></div>';
-    return h;
-  }
-
-  /** Remove Stega / invisible chars Sanity may inject in preview fetches */
-  function stripStegaText(t) {
-    return String(t || '').replace(/[\u00ad\u200b-\u200f\u2028\u2029\ufeff]/g, '');
-  }
-
-  function renderLawBodyPortableText(blocks, prefix) {
-    if (!Array.isArray(blocks) || !blocks.length) return '';
-
-    function renderLawSpanChildren(block) {
-      var children = Array.isArray(block && block.children) ? block.children : [];
-      var markDefs = Array.isArray(block && block.markDefs) ? block.markDefs : [];
-      var markDefMap = {};
-      markDefs.forEach(function (d) {
-        if (d && d._key) markDefMap[d._key] = d;
-      });
-
-      return children
-        .map(function (child) {
-          if (!child || child._type !== 'span') return '';
-          var rawText = stripStegaText(child.text || '');
-          var marks = Array.isArray(child.marks) ? child.marks.slice() : [];
-
-          var lawMarkKey = null;
-          for (var mi = 0; mi < marks.length; mi++) {
-            var mk = marks[mi];
-            var def = markDefMap[mk];
-            if (def && def._type === 'lawFragment') {
-              lawMarkKey = mk;
-              break;
-            }
-          }
-
-          if (lawMarkKey) {
-            var lfDef = markDefMap[lawMarkKey];
-            var imgSrc = resolveImageSrc(lfDef && lfDef.image, prefix);
-            var inner = escapeHtml(rawText);
-            marks.forEach(function (mark) {
-              if (mark === lawMarkKey) return;
-              if (mark === 'strong') inner = '<strong>' + inner + '</strong>';
-              else if (mark === 'em') inner = '<em>' + inner + '</em>';
-              else if (mark === 'strike-through') inner = '<del>' + inner + '</del>';
-              else if (markDefMap[mark] && markDefMap[mark]._type === 'link' && markDefMap[mark].href) {
-                inner =
-                  '<a href="' +
-                  escapeAttr(markDefMap[mark].href) +
-                  '" target="_blank" rel="noopener">' +
-                  inner +
-                  '</a>';
-              }
-            });
-            return (
-              '<button type="button" class="law-fragment" data-image="' +
-              escapeAttr(imgSrc) +
-              '">' +
-              inner +
-              '</button><span class="law-image-inline"></span>'
-            );
-          }
-
-          var text = escapeHtml(rawText);
-          marks.forEach(function (mark) {
-            if (mark === 'strong') text = '<strong>' + text + '</strong>';
-            else if (mark === 'em') text = '<em>' + text + '</em>';
-            else if (mark === 'strike-through') text = '<del>' + text + '</del>';
-            else if (markDefMap[mark] && markDefMap[mark]._type === 'link' && markDefMap[mark].href) {
-              text =
-                '<a href="' +
-                escapeAttr(markDefMap[mark].href) +
-                '" target="_blank" rel="noopener">' +
-                text +
-                '</a>';
-            }
-          });
-          return text;
-        })
-        .join('');
-    }
-
-    var out = [];
-    var listType = null;
-    var listItems = [];
-
-    function flushLawList() {
-      if (!listType || !listItems.length) return;
-      var tag = listType === 'number' ? 'ol' : 'ul';
-      out.push('<' + tag + '>' + listItems.map(function (li) { return '<li>' + li + '</li>'; }).join('') + '</' + tag + '>');
-      listType = null;
-      listItems = [];
-    }
-
-    blocks.forEach(function (block) {
-      if (!block || block._type !== 'block') return;
-      var itemText = renderLawSpanChildren(block);
-      if (block.listItem) {
-        var current = block.listItem === 'number' ? 'number' : 'bullet';
-        if (listType && listType !== current) flushLawList();
-        listType = current;
-        listItems.push(itemText);
-        return;
-      }
-
-      flushLawList();
-      var style = block.style || 'normal';
-      if (style === 'h2') out.push('<h2>' + itemText + '</h2>');
-      else if (style === 'h3') out.push('<h3>' + itemText + '</h3>');
-      else if (style === 'blockquote') out.push('<blockquote><p>' + itemText + '</p></blockquote>');
-      else out.push('<p>' + itemText + '</p>');
-    });
-
-    flushLawList();
-    return out.join('\n');
-  }
-
-  function buildLawDocumentHtml(heading, bodyBlocks, prefix) {
-    var inner = renderLawBodyPortableText(bodyBlocks, prefix);
-    var h = '<div class="law-layout"><div class="law-text">';
-    if (heading) {
-      h += '<h2 class="law-heading">' + escapeHtml(stripStegaText(heading)) + '</h2>';
-    }
-    h += inner;
-    h += '</div></div>';
-    return h;
   }
 
   var HOME_PAGE_DOC_ID = 'homePageConfig';
-  var IMMERSIVE_LAW_DOC_ID = 'immersiveLawDance';
-  var IMMERSIVE_NEEDLE_DOC_ID = 'immersiveNeedleSlider';
+  var SITE_MATERIALS_DOC_ID = 'siteMaterials';
+  var materialCatalogPromise = null;
+
+  var MATERIALS_CATALOG_GROQ =
+    '*[_id == "' +
+    SITE_MATERIALS_DOC_ID +
+    '" || _id == "drafts.' +
+    SITE_MATERIALS_DOC_ID +
+    '"][0]{entries[]{key, label, icon}}';
+
+  async function loadMaterialCatalog() {
+    if (materialCatalogPromise) return materialCatalogPromise;
+    materialCatalogPromise = sanityFetch(MATERIALS_CATALOG_GROQ)
+      .then(function (doc) {
+        var entries = doc && Array.isArray(doc.entries) ? doc.entries : [];
+        if (entries.length && SDV.applyMaterialCatalog) {
+          SDV.applyMaterialCatalog(entries);
+        }
+      })
+      .catch(function (err) {
+        console.warn('[sdv] loadMaterialCatalog failed:', err && err.message ? err.message : err);
+      });
+    return materialCatalogPromise;
+  }
+
+  var PROJECT_FIELDS =
+    '"slug": coalesce(slug.current, slug), home_materials, header_title,\n' +
+    'body, materials, links, falls, gallery, _updatedAt';
 
   var HOME_PAGE_GROQ =
     '*[_id == "' +
@@ -840,24 +840,24 @@
     '"][0]{\n' +
     '  entries[]{\n' +
     '    navLabel,\n' +
-    '    homeLineColor,\n' +
-    '    splashImage,\n' +
     '    "proj": project->{\n' +
-    '      slug, homeLineColor, home_materials, immersive_enabled, header_title,\n' +
-    '      body, materials, links, falls, gallery, _updatedAt\n' +
+    '      ' +
+    PROJECT_FIELDS +
+    '\n' +
     '    }\n' +
     '  }\n' +
     '}';
 
   var PROJECT_FALLBACK_GROQ =
     '*[_type == "project"]{\n' +
-    '  slug, homeLineColor, home_materials, immersive_enabled, header_title,\n' +
-    '  body, materials, links, falls, gallery, _updatedAt\n' +
+    '  ' +
+    PROJECT_FIELDS +
+    '\n' +
     '}';
 
-  var FALLBACK_SLUG_ORDER = ['the-spontaneous-dance-falls', 'under-the-needles-eye', 'overlocked'];
+  var FALLBACK_SLUG_ORDER = ['the-spontaneous-dance-falls', 'under-the-needle-s-eye', 'overlocked'];
 
-  /** When Sanity is unreachable or returns no projects, still render home nav + materials (matches content/home.json). */
+  /** Offline fallback for home nav and materials (matches content/home.json). */
   function getOfflineHomeProjects() {
     return [
       {
@@ -866,7 +866,6 @@
         home_materials: ['Glass', 'Textile', 'Metal', 'Archive', 'A/V', 'Performance'],
         materials: [],
         gallery: [],
-        immersive_enabled: true,
         body: [],
         links: [],
         falls: [
@@ -877,19 +876,15 @@
             images: ['images/home/fall.jpg'],
           },
         ],
-        homeLineColor: '#3f3739',
         _updatedAt: '',
         _homeNavLabelOverride: '',
-        _homeSplashOverride: null,
-        _homeLineColor: '#3f3739',
       },
       {
-        slug: 'under-the-needles-eye',
+        slug: 'under-the-needle-s-eye',
         header_title: "Under the Needle's Eye",
         home_materials: ['Textile', 'Metal', 'Archive', 'A/V'],
         materials: [],
         gallery: [],
-        immersive_enabled: true,
         body: [],
         links: [],
         falls: [
@@ -900,11 +895,8 @@
             images: ['images/home/needle.jpg'],
           },
         ],
-        homeLineColor: '#713b38',
         _updatedAt: '',
         _homeNavLabelOverride: '',
-        _homeSplashOverride: null,
-        _homeLineColor: '#713b38',
       },
       {
         slug: 'overlocked',
@@ -912,7 +904,6 @@
         home_materials: ['Synthetic', 'Textile', 'Archive', 'A/V', 'Objects'],
         materials: [],
         gallery: [],
-        immersive_enabled: true,
         body: [],
         links: [],
         falls: [
@@ -923,11 +914,8 @@
             images: ['images/home/overlocked.jpg'],
           },
         ],
-        homeLineColor: '#1851a3',
         _updatedAt: '',
         _homeNavLabelOverride: '',
-        _homeSplashOverride: null,
-        _homeLineColor: '#1851a3',
       },
     ];
   }
@@ -958,10 +946,8 @@
         var p = e.proj;
         if (!p || !p.slug) continue;
         var base = normalizeSanityProject(p);
-        base._homeNavLabelOverride = e.navLabel && String(e.navLabel).trim() ? String(e.navLabel).trim() : '';
-        base._homeSplashOverride = e.splashImage || null;
-        var entryLine = e.homeLineColor != null ? String(e.homeLineColor).trim() : '';
-        base._homeLineColor = entryLine || (base.homeLineColor && String(base.homeLineColor).trim()) || '';
+        var navLabel = e.navLabel ? String(cleanStegaText(e.navLabel)).trim() : '';
+        base._homeNavLabelOverride = navLabel;
         merged.push(base);
       }
       if (merged.length) {
@@ -987,28 +973,31 @@
     var nav = document.querySelector('.home-projects');
     if (!nav) return;
 
+    if (isPreviewEnabled()) await loadStegaClean();
+
     try {
       var projects = await fetchOrderedProjects();
       window.SDV_HOME_PROJECTS = projects.map(function (p) {
         var prefix = rootPrefix();
-        var splash = p._homeSplashOverride ? resolveImageSrc(p._homeSplashOverride, prefix) : '';
-        if (!splash) splash = firstProjectSplashImage(p, prefix);
-        var label =
+        var splash = firstProjectSplashImage(p, prefix);
+        var label = cleanStegaText(
           (p._homeNavLabelOverride && String(p._homeNavLabelOverride).trim()) ||
-          p.header_title ||
-          p.slug;
-        var hl = String(p._homeLineColor != null ? p._homeLineColor : p.homeLineColor || '').trim();
-        return { slug: p.slug, label: label, splashUrl: splash, homeLineColor: hl };
+            p.header_title ||
+            p.slug,
+        );
+        return { slug: cleanStegaText(p.slug), label: label, splashUrl: splash };
       });
 
       var html = '';
       window.SDV_HOME_PROJECTS.forEach(function (row) {
         html +=
-          '<button type="button" class="home-project" data-slug="' +
+          '<a class="home-project" href="' +
+          escapeAttr(withPreviewQuery('project/' + row.slug + '/')) +
+          '" data-slug="' +
           escapeAttr(row.slug) +
           '">' +
           escapeHtml(row.label) +
-          '</button>';
+          '</a>';
       });
       nav.innerHTML = html;
       window.dispatchEvent(new CustomEvent('sdv:home'));
@@ -1018,24 +1007,35 @@
         window.SDV_HOME_PROJECTS = getOfflineHomeProjects().map(function (p) {
           var prefix = rootPrefix();
           var splash = firstProjectSplashImage(p, prefix);
-          var label =
-            (p._homeNavLabelOverride && String(p._homeNavLabelOverride).trim()) || p.header_title || p.slug;
-          var hl2 = String(p._homeLineColor != null ? p._homeLineColor : p.homeLineColor || '').trim();
-          return { slug: p.slug, label: label, splashUrl: splash, homeLineColor: hl2 };
+          var label = cleanStegaText(
+            (p._homeNavLabelOverride && String(p._homeNavLabelOverride).trim()) ||
+              p.header_title ||
+              p.slug,
+          );
+          return { slug: cleanStegaText(p.slug), label: label, splashUrl: splash };
         });
         var html2 = '';
         window.SDV_HOME_PROJECTS.forEach(function (row) {
           html2 +=
-            '<button type="button" class="home-project" data-slug="' +
+            '<a class="home-project" href="' +
+            escapeAttr(withPreviewQuery('project/' + row.slug + '/')) +
+            '" data-slug="' +
             escapeAttr(row.slug) +
             '">' +
             escapeHtml(row.label) +
-            '</button>';
+            '</a>';
         });
         nav.innerHTML = html2;
         window.dispatchEvent(new CustomEvent('sdv:home'));
       } catch (e2) { }
     }
+  }
+
+  function setupImmersiveNav(slug) {
+    var back = document.querySelector('[data-immersive-back]');
+    var index = document.querySelector('[data-immersive-index]');
+    if (back) back.setAttribute('href', withPreviewQuery('../../project/' + slug + '/'));
+    if (index) index.setAttribute('href', withPreviewQuery('../../'));
   }
 
   async function loadImmersiveContent() {
@@ -1044,85 +1044,43 @@
     if (!page || !slug) return;
 
     page.setAttribute('data-slug', slug);
-
-    if (slug === 'overlocked') {
-      dispatchImmersiveReady(slug);
-      return;
-    }
-
-    if (slug !== 'the-spontaneous-dance-falls' && slug !== 'under-the-needles-eye') {
-      dispatchImmersiveReady(slug);
-      return;
-    }
+    setupImmersiveNav(slug);
 
     try {
       var prefix = rootPrefix();
-
-      if (slug === 'the-spontaneous-dance-falls') {
-        var lawDoc = await sanityFetch(
-          '*[_id in [$publishedId, $draftId]] | order(_updatedAt desc)[0]{heading, body}',
-          {
-            publishedId: IMMERSIVE_LAW_DOC_ID,
-            draftId: 'drafts.' + IMMERSIVE_LAW_DOC_ID,
-          },
+      var data = (SDV_PREVIEW.projectsBySlug && SDV_PREVIEW.projectsBySlug[slug])
+        ? SDV_PREVIEW.projectsBySlug[slug]
+        : null;
+      if (!data) {
+        var doc = await sanityFetch(
+          '*[_type=="project" && coalesce(slug.current, slug) == $slug][0]{' +
+          '"slug": coalesce(slug.current, slug), header_title, falls, gallery, _updatedAt' +
+          '}',
+          { slug: slug },
         );
-        var lawHtml = '';
-        if (lawDoc && Array.isArray(lawDoc.body) && lawDoc.body.length) {
-          lawHtml = buildLawDocumentHtml(lawDoc.heading || '', lawDoc.body, prefix);
-        } else {
-          var legacyLaw = await sanityFetch(
-            '*[_type == "project" && slug == $slug][0]{immersive_law_heading, immersive_law_paragraphs}',
-            { slug: slug },
-          );
-          var ld = legacyLaw || {};
-          lawHtml = buildLawLayoutHtml(
-            Array.isArray(ld.immersive_law_paragraphs) ? ld.immersive_law_paragraphs : [],
-            ld.immersive_law_heading || '',
-            prefix,
-          );
-        }
-        var mainInner = document.getElementById('immersive-inner');
-        var insetInner = document.getElementById('immersive-inner-inset');
-        if (mainInner) mainInner.innerHTML = lawHtml;
-        if (insetInner) insetInner.innerHTML = lawHtml;
+        data = normalizeSanityProject(doc || {});
+        SDV_PREVIEW.projectsBySlug[slug] = data;
       }
-
-      if (slug === 'under-the-needles-eye') {
-        var needleDoc = await sanityFetch(
-          '*[_id in [$publishedId, $draftId]] | order(_updatedAt desc)[0]{slides}',
-          {
-            publishedId: IMMERSIVE_NEEDLE_DOC_ID,
-            draftId: 'drafts.' + IMMERSIVE_NEEDLE_DOC_ID,
-          },
-        );
-        var slideRows = needleDoc && Array.isArray(needleDoc.slides) ? needleDoc.slides : [];
-        if (!slideRows.length) {
-          var legacyNeedle = await sanityFetch(
-            '*[_type == "project" && slug == $slug][0]{immersive_slider_slides}',
-            { slug: slug },
-          );
-          slideRows =
-            legacyNeedle && Array.isArray(legacyNeedle.immersive_slider_slides)
-              ? legacyNeedle.immersive_slider_slides
-              : [];
-        }
-        var slides = [];
-        slideRows.forEach(function (slide) {
-          if (!slide) return;
-          var src = resolveImageSrc(slide.image, prefix);
-          var cap = Array.isArray(slide.caption) ? renderPortableText(slide.caption) : '';
-          slides.push({ src: src, captionHtml: cap });
+      var displayTitle = (data.header_title && String(data.header_title).trim())
+        ? String(data.header_title).trim()
+        : slug;
+      document.title = 'SDV — ' + displayTitle;
+      var mainImg = document.querySelector('.immersive-flyer__img');
+      if (mainImg) mainImg.setAttribute('alt', displayTitle);
+      var panels = effectiveTimelinePanels(data);
+      var hit = findPublicationPanel(panels);
+      var urls = [];
+      if (hit && hit.panel && Array.isArray(hit.panel.images)) {
+        hit.panel.images.forEach(function (src) {
+          var u = resolveImageSrc(src, prefix);
+          if (u) urls.push(SDV.immersiveImageDisplayUrl(u));
         });
-        window.SDV_IMMERSIVE_SLIDER = { slides: slides };
-      } else {
-        try {
-          delete window.SDV_IMMERSIVE_SLIDER;
-        } catch (e) {
-          window.SDV_IMMERSIVE_SLIDER = undefined;
-        }
       }
+      window.SDV_FLYER_IMAGES = { images: urls, index: 0 };
+      preloadImmersiveImages(urls);
     } catch (e) {
       console.warn('[sdv] Immersive content failed to load:', e && e.message ? e.message : e);
+      window.SDV_FLYER_IMAGES = { images: [], index: 0 };
     }
 
     dispatchImmersiveReady(slug);
@@ -1132,6 +1090,7 @@
     if (!document.querySelector('.view--home')) return;
 
     try {
+      await loadMaterialCatalog();
       var projects = await fetchOrderedProjects();
       var slugs = projects.map(function (p) { return p.slug; }).filter(Boolean);
 
@@ -1141,8 +1100,8 @@
           return Promise.resolve({ slug: slug, data: hit });
         }
         return sanityFetch(
-          '*[_type=="project" && slug == $slug][0]{' +
-          'slug, home_materials, immersive_enabled, header_title, body, materials, links, falls, gallery, _updatedAt' +
+          '*[_type=="project" && coalesce(slug.current, slug) == $slug][0]{' +
+          PROJECT_FIELDS +
           '}',
           { slug: slug },
         ).then(function (doc) {
@@ -1156,16 +1115,14 @@
 
       results.forEach(function (r) {
         var d = r.data || {};
-        var sourceList = Array.isArray(d.home_materials) ? d.home_materials : (Array.isArray(d.materials) ? d.materials : []);
+        var sourceList = Array.isArray(d.home_materials) ? d.home_materials : [];
         var mats = [];
         var seen = {};
         sourceList.forEach(function (labelRaw) {
           if (labelRaw === null || labelRaw === undefined) return;
           var label = String(labelRaw).trim();
           if (!label) return;
-          var rawKey = slugifyKey(label);
-          if (!rawKey) return;
-          var key = canonicalMaterialKey(rawKey, label);
+          var key = resolveMaterialKey(label);
           if (!key) return;
           if (seen[key]) return;
           seen[key] = 1;
@@ -1176,7 +1133,17 @@
         projectMap[r.slug] = { materials: mats };
       });
 
+      var catalogOrder = {};
+      if (SDV.getMaterialCatalogEntries) {
+        SDV.getMaterialCatalogEntries().forEach(function (entry, i) {
+          if (entry && entry.key) catalogOrder[entry.key] = i;
+        });
+      }
+
       var all = Object.keys(allLabelsByKey).sort(function (a, b) {
+        var ia = catalogOrder[a] != null ? catalogOrder[a] : 1e9;
+        var ib = catalogOrder[b] != null ? catalogOrder[b] : 1e9;
+        if (ia !== ib) return ia - ib;
         return allLabelsByKey[a].localeCompare(allLabelsByKey[b]);
       }).map(function (key) {
         return { key: key, label: allLabelsByKey[key] };
@@ -1186,7 +1153,7 @@
       window.SDV_ALL_MATERIALS = all;
       window.dispatchEvent(new Event('sdv:materials'));
     } catch (e) {
-      // Non-fatal.
+      /* Materials fetch failed; home page still renders. */
     }
   }
 
@@ -1198,28 +1165,54 @@
     var selected = 0;
     var isProgrammaticScroll = false;
     var rafScrollSync = 0;
+    var timelineNav = setupProjectTimelineNav(timelineHost);
 
-    function buildPanelImages(hostEl, fall) {
+    function buildPanelImages(hostEl, fall, panelIndex) {
       hostEl.innerHTML = '';
       if (!fall || !Array.isArray(fall.images)) return;
-      fall.images.forEach(function (src) {
+      var urls = [];
+      fall.images.forEach(function (src, imgIndex) {
+        var resolved = resolveImageSrc(src, prefix);
+        urls.push(resolved);
         var img = document.createElement('img');
-        img.src = resolveImageSrc(src, prefix);
+        img.src = resolved;
         img.alt = '';
+        img.dataset.panelIndex = String(panelIndex);
+        img.dataset.imageIndex = String(imgIndex);
+        img.addEventListener('click', function () {
+          window.dispatchEvent(
+            new CustomEvent('sdv:lightbox-open', {
+              detail: { urls: urls.slice(), index: imgIndex },
+            }),
+          );
+        });
         hostEl.appendChild(img);
       });
     }
 
-    var panels = falls.map(function (fall) {
+    var panels = falls.map(function (fall, panelIndex) {
       var panel = document.createElement('div');
       panel.className = 'project-gallery-panel';
       var scroll = document.createElement('div');
       scroll.className = 'project-gallery-panel-scroll';
-      buildPanelImages(scroll, fall);
+      buildPanelImages(scroll, fall, panelIndex);
       panel.appendChild(scroll);
       panelsHost.appendChild(panel);
       return panel;
     });
+
+    function emitTabChange() {
+      var fall = falls[selected] || {};
+      window.dispatchEvent(
+        new CustomEvent('sdv:project-tab', {
+          detail: {
+            index: selected,
+            label: fall.label ? String(fall.label) : '',
+            isPublication: !!(fall && fall.isPublication),
+          },
+        }),
+      );
+    }
 
     function clampIndex(i) {
       var n = falls.length;
@@ -1250,9 +1243,11 @@
     }
 
     function setTimelineCurrent(i) {
-      Array.from(timelineHost.querySelectorAll('button')).forEach(function (b, idx) {
+      var buttons = Array.from(timelineHost.querySelectorAll('button.project-timeline__item'));
+      buttons.forEach(function (b, idx) {
         b.setAttribute('aria-current', idx === i ? 'true' : 'false');
       });
+      if (timelineNav && buttons[i]) timelineNav.scrollTabIntoView(buttons[i]);
     }
 
     function scrollToPanel(i, behavior) {
@@ -1272,6 +1267,7 @@
       if (sc && prev !== selected) sc.scrollTop = 0;
       var immediate = options && options.immediate;
       scrollToPanel(selected, immediate ? 'auto' : 'smooth');
+      emitTabChange();
     }
 
     function activeIndexFromScroll() {
@@ -1288,8 +1284,10 @@
       var label = fall && fall.label ? String(fall.label) : ('Fall ' + (idx + 1));
       var type = fall && fall.type ? String(fall.type) : '';
       var details = fall && fall.details ? String(fall.details) : '';
+      var isPub = !!(fall && fall.isPublication);
 
       btn.textContent = label;
+      btn.dataset.isPublication = isPub ? 'true' : 'false';
       if (type || details) {
         btn.setAttribute('aria-label', type ? (label + ': ' + type) : label);
         if (details) btn.title = details;
@@ -1314,6 +1312,7 @@
         setMeta(selected);
         var sc = panelScrollElAt(selected);
         if (sc) sc.scrollTop = 0;
+        emitTabChange();
       });
     }, { passive: true });
 
@@ -1322,6 +1321,86 @@
     });
 
     setActive(0, { immediate: true });
+    if (timelineNav) {
+      timelineNav.refresh();
+      requestAnimationFrame(function () {
+        timelineNav.refresh();
+      });
+    }
+  }
+
+  function setupProjectTimelineNav(timelineHost) {
+    if (!timelineHost || timelineHost.dataset.timelineNavBound === '1') {
+      return timelineHost._sdvTimelineNav || null;
+    }
+    var parent = timelineHost.parentElement;
+    if (!parent) return null;
+
+    var scrollRow = document.createElement('div');
+    scrollRow.className = 'project-timeline-scroll';
+    parent.insertBefore(scrollRow, timelineHost);
+
+    var prevBtn = document.createElement('button');
+    prevBtn.type = 'button';
+    prevBtn.className = 'project-timeline-nav project-timeline-nav--prev';
+    prevBtn.setAttribute('aria-label', 'Scroll tabs left');
+    prevBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M14 6l-6 6 6 6"/></svg>';
+
+    var nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.className = 'project-timeline-nav project-timeline-nav--next';
+    nextBtn.setAttribute('aria-label', 'Scroll tabs right');
+    nextBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 6l6 6-6 6"/></svg>';
+
+    scrollRow.appendChild(prevBtn);
+    scrollRow.appendChild(timelineHost);
+    scrollRow.appendChild(nextBtn);
+
+    function refresh() {
+      var overflow = timelineHost.scrollWidth > timelineHost.clientWidth + 2;
+      scrollRow.classList.toggle('has-overflow', overflow);
+      var atStart = timelineHost.scrollLeft <= 2;
+      var atEnd = timelineHost.scrollLeft >= timelineHost.scrollWidth - timelineHost.clientWidth - 2;
+      prevBtn.hidden = !overflow || atStart;
+      nextBtn.hidden = !overflow || atEnd;
+    }
+
+    function scrollByDir(dir) {
+      var delta = Math.max(100, timelineHost.clientWidth * 0.55) * dir;
+      timelineHost.scrollBy({ left: delta, behavior: 'smooth' });
+    }
+
+    prevBtn.addEventListener('click', function () { scrollByDir(-1); });
+    nextBtn.addEventListener('click', function () { scrollByDir(1); });
+    timelineHost.addEventListener('scroll', refresh, { passive: true });
+    window.addEventListener('resize', refresh);
+    if (typeof ResizeObserver !== 'undefined') {
+      var resizeObserver = new ResizeObserver(function () {
+        refresh();
+      });
+      resizeObserver.observe(scrollRow);
+      resizeObserver.observe(timelineHost);
+    }
+
+    var navApi = {
+      refresh: refresh,
+      scrollTabIntoView: function (btn) {
+        if (!btn) return;
+        try {
+          btn.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+        } catch (e) {
+          btn.scrollIntoView(false);
+        }
+        setTimeout(refresh, 280);
+      },
+    };
+
+    timelineHost.dataset.timelineNavBound = '1';
+    timelineHost._sdvTimelineNav = navApi;
+    refresh();
+    return navApi;
   }
 
   async function loadProject() {
@@ -1339,8 +1418,8 @@
       : null;
     if (!data) {
       var doc = await sanityFetch(
-        '*[_type=="project" && slug == $slug][0]{' +
-        'slug, home_materials, immersive_enabled, header_title, body, materials, links, falls, gallery, _updatedAt' +
+        '*[_type=="project" && coalesce(slug.current, slug) == $slug][0]{' +
+        PROJECT_FIELDS +
         '}',
         { slug: slug },
       );
@@ -1362,14 +1441,23 @@
     if (materialsHost) {
       var matsHtml = '';
       if (Array.isArray(data.materials) && data.materials.length) {
-        matsHtml = '<h3>Materials</h3><ul>' + data.materials.map(function (m) {
-          return '<li>' + escapeHtml(String(m || '')) + '</li>';
-        }).join('') + '</ul>';
+        matsHtml =
+          '<h3>Material composition &amp; elements</h3><ul>' +
+          data.materials
+            .map(function (m) {
+              var text = String(m || '').trim();
+              return text ? '<li>' + escapeHtml(text) + '</li>' : '';
+            })
+            .filter(Boolean)
+            .join('') +
+          '</ul>';
       }
-      var matKeys = extractMaterialKeysForProject(data);
-      var icons = renderMaterialIcons(matKeys);
-      var iconsWrap = icons ? ('<div class="project-material-icons" aria-hidden="true">' + icons + '</div>') : '';
-      materialsHost.innerHTML = matsHtml + iconsWrap;
+      var iconKeys = homeMaterialKeysForProject(data);
+      var icons = renderMaterialIcons(iconKeys);
+      var iconsWrap = icons
+        ? ('<div class="project-material-icons" aria-hidden="true">' + icons + '</div>')
+        : '';
+      materialsHost.innerHTML = matsHtml || iconsWrap ? matsHtml + iconsWrap : '';
     }
 
     var linksHost = document.getElementById('project-links');
@@ -1378,9 +1466,14 @@
     }
 
     var zoomWrap = document.querySelector('.project-zoom-wrap');
+    var zoomBtn = document.querySelector('.project-zoom-btn');
+    var panels = effectiveTimelinePanels(data);
+    var hasImmersive = projectHasPublicationImmersive(panels);
     if (zoomWrap) {
-      var on = (data.immersive_enabled === undefined) ? true : !!data.immersive_enabled;
-      zoomWrap.style.display = on ? '' : 'none';
+      zoomWrap.hidden = !hasImmersive;
+    }
+    if (zoomBtn && hasImmersive) {
+      zoomBtn.setAttribute('href', withPreviewQuery('../../immersive/' + slug + '/'));
     }
 
     if (galleryHost) {
@@ -1388,7 +1481,7 @@
       var timelineHost = document.getElementById('project-timeline');
       var panelsHost = document.getElementById('project-gallery-panels');
       var metaHost = document.getElementById('project-fall-meta');
-      var panels = effectiveTimelinePanels(data);
+      window.SDV_PROJECT_FALLS = panels;
 
       if (timelineHost && panelsHost) {
         galleryHost.classList.add('has-falls');
@@ -1442,85 +1535,37 @@
   }
 
   async function loadInfoLinks() {
-    var host = document.getElementById('info-links');
+    var homeHost = document.getElementById('home-info-content');
     var bioHost = document.getElementById('bio-content');
-    if (!host && !bioHost) return;
-    var prefix = rootPrefix();
-    var data = null;
+    if (!bioHost && !homeHost) return;
+
     var bioBody = '';
 
     if (SDV_PREVIEW.info) {
-      data = SDV_PREVIEW.info.data || {};
       bioBody = SDV_PREVIEW.info.body || '';
     } else {
-      var infoDoc = await sanityFetch('*[_type=="info"][0]{body, press, cv, _updatedAt}');
+      var infoDoc = await sanityFetch('*[_type=="info"][0]{body, _updatedAt}');
       var normalized = normalizeSanityInfo(infoDoc || {});
-      data = normalized.data;
       bioBody = normalized.body;
       SDV_PREVIEW.info = normalized;
     }
 
+    var bioHtml = Array.isArray(bioBody) && bioBody.length
+      ? renderPortableText(bioBody)
+      : '<p>Bio not found.</p>';
+
     if (bioHost) {
-      bioHost.innerHTML = Array.isArray(bioBody) && bioBody.length
-        ? renderPortableText(bioBody)
-        : '<p>Bio not found.</p>';
+      bioHost.innerHTML = bioHtml;
     }
 
-    var html = '';
-
-    if (Array.isArray(data.press) && data.press.length) {
-      html += '<p><strong>Press</strong></p>';
-      data.press.forEach(function (item) {
-        if (!item) return;
-        var t = item.title ? escapeHtml(String(item.title)) : 'Link';
-        var href = item.url ? escapeHtml(String(item.url)) : '';
-        var desc = item.description ? escapeHtml(String(item.description)) : '';
-        if (href) {
-          html += '<p><strong><a href="' + href + '" target="_blank" rel="noopener">' + t + ':</a></strong> ' + desc + '</p>';
-        } else {
-          html += '<p><strong>' + t + ':</strong> ' + desc + '</p>';
-        }
-      });
-    }
-
-    if (data.cv && (data.cv.file || data.cv.url)) {
-      html += '<p><strong>CV</strong></p>';
-      var cvLabel = data.cv.label ? escapeHtml(String(data.cv.label)) : 'Download CV';
-      var href2 = data.cv.url ? String(data.cv.url) : resolveFileHref(data.cv.file, prefix);
-      var fullHref = escapeHtml(safeHref(href2, prefix));
-      html += '<p><a href="' + fullHref + '" target="_blank" rel="noopener">' + cvLabel + '</a></p>';
-    }
-
-    if (host) {
-      host.innerHTML = html || '<p>Links failed to load.</p>';
-    }
-  }
-
-  async function loadCaptions() {
-    var immersiveRoot = document.querySelector('.immersive-page');
-    if (!immersiveRoot) return;
-    try {
-      var list = null;
-      if (SDV_PREVIEW.captions && Array.isArray(SDV_PREVIEW.captions.captions)) {
-        list = SDV_PREVIEW.captions.captions;
-      } else {
-        var captionsDoc = await sanityFetch('*[_type=="captions"][0]{items, _updatedAt}');
-        var normalizedCaptions = normalizeSanityCaptions(captionsDoc || {});
-        list = normalizedCaptions.captions;
-        SDV_PREVIEW.captions = normalizedCaptions;
-      }
-      if (list) {
-        window.SDV_CAPTIONS = list;
-        window.dispatchEvent(new Event('sdv:captions'));
-      }
-    } catch (e) {
-      // app.js uses CAPTIONS fallback when window.SDV_CAPTIONS is missing.
+    if (homeHost) {
+      homeHost.innerHTML = bioHtml;
     }
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    setupVisualEditingBridge();
     preservePreviewLinks();
+    var catalogReady = loadMaterialCatalog();
     if (canUseDraftPreview()) {
       loadTypography().catch(function () { });
     } else {
@@ -1534,20 +1579,21 @@
       }
     }
     loadInfoLinks().catch(function () {
-      var host = document.getElementById('info-links');
-      if (host) host.innerHTML = '<p>Links failed to load.</p>';
       var bioHost = document.getElementById('bio-content');
       if (bioHost) bioHost.innerHTML = '<p>Bio failed to load.</p>';
+      var homeHost = document.getElementById('home-info-content');
+      if (homeHost) homeHost.innerHTML = '<p>Info failed to load.</p>';
     });
-    loadProject().catch(function () {
-      var textHost = document.getElementById('project-overview-text');
-      if (textHost) textHost.innerHTML = '<p>Project content failed to load.</p>';
-      var galleryHost = document.getElementById('project-gallery');
-      if (galleryHost) galleryHost.querySelectorAll('img').forEach(function (el) { el.remove(); });
+    catalogReady.finally(function () {
+      loadProject().catch(function () {
+        var textHost = document.getElementById('project-overview-text');
+        if (textHost) textHost.innerHTML = '<p>Project content failed to load.</p>';
+        var galleryHost = document.getElementById('project-gallery');
+        if (galleryHost) galleryHost.querySelectorAll('img').forEach(function (el) { el.remove(); });
+      });
+      loadHomeMaterials().catch(function () { });
     });
     loadHome().catch(function () { });
-    loadHomeMaterials().catch(function () { });
-    loadCaptions().catch(function () { });
     loadImmersiveContent().catch(function () { });
 
     if (isPreviewEnabled()) {

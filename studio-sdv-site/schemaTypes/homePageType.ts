@@ -10,7 +10,7 @@ export const homePageType = defineType({
     defineField({
       name: 'entries',
       title: 'Projects on home (order)',
-      description: 'Order defines carousel / nav order. Optional label and splash override the project defaults.',
+      description: 'Order defines carousel / nav order. Optional label overrides the project title. Removing a project here (or deleting it under Projects) takes it off the home page.',
       type: 'array',
       of: [
         defineField({
@@ -31,30 +31,11 @@ export const homePageType = defineType({
               description: 'Leave empty to use the project title.',
               type: 'string',
             }),
-            defineField({
-              name: 'splashImage',
-              title: 'Splash image override',
-              description: 'Leave empty if you rely on a default asset elsewhere.',
-              type: 'image',
-              options: {hotspot: false},
-            }),
-            defineField({
-              name: 'homeLineColor',
-              title: 'Home line color',
-              description:
-                'Hex color for the home crosshair and center frame when this project is selected (e.g. #7e7777). Overrides the project default when set.',
-              type: 'string',
-              validation: (Rule) =>
-                Rule.custom((val) => {
-                  if (val == null || !String(val).trim()) return true
-                  return /^#[0-9A-Fa-f]{6}$/.test(String(val).trim()) ? true : 'Use #RRGGBB'
-                }),
-            }),
           ],
           preview: {
-            select: {label: 'navLabel', media: 'splashImage'},
-            prepare({label}: {label?: string}) {
-              return {title: label || 'Home entry'}
+            select: {label: 'navLabel', projectTitle: 'project.title'},
+            prepare({label, projectTitle}: {label?: string; projectTitle?: string}) {
+              return {title: label || projectTitle || 'Home entry'}
             },
           },
         }),

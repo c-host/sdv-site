@@ -10,11 +10,29 @@ const SYSTEM_FONT_LIST = [
   {title: 'System monospace', value: 'mono'},
 ]
 
+/** Web sans presets for Base UI (loaded from Google Fonts when selected). */
+const BASE_UI_FONT_LIST = [
+  {title: 'Inter', value: 'inter'},
+  {title: 'Source Sans 3', value: 'source-sans-3'},
+  {title: 'IBM Plex Sans', value: 'ibm-plex-sans'},
+  {title: 'Open Sans', value: 'open-sans'},
+  {title: 'Noto Sans', value: 'noto-sans'},
+  {title: 'System UI', value: 'system-ui'},
+]
+
+type FontRoleFieldOptions = {
+  systemPresets?: Array<{title: string; value: string}>
+  defaultPreset?: string
+}
+
 function fontRoleField(
   name: string,
   title: string,
   description: string,
+  options?: FontRoleFieldOptions,
 ) {
+  const presets = options?.systemPresets ?? SYSTEM_FONT_LIST
+  const defaultPreset = options?.defaultPreset ?? 'system-ui'
   return defineField({
     name,
     title,
@@ -38,8 +56,8 @@ function fontRoleField(
         name: 'systemPreset',
         title: 'System preset',
         type: 'string',
-        initialValue: 'system-ui',
-        options: {list: SYSTEM_FONT_LIST},
+        initialValue: defaultPreset,
+        options: {list: presets},
         hidden: ({parent}) => parent?.source !== 'system',
       }),
       defineField({
@@ -115,7 +133,8 @@ export const siteTypographyType = defineType({
     fontRoleField(
       'baseUi',
       'Base UI',
-      'Default sans stack for the page (body, chrome).',
+      'Chrome and controls (buttons, labels, UI chrome). Choose Inter, Source Sans 3, IBM Plex Sans, Open Sans, or Noto Sans for the same font on every device. System UI uses each visitor’s operating-system interface font instead, so it can look different on Mac, Windows, and Linux.',
+      {systemPresets: BASE_UI_FONT_LIST, defaultPreset: 'inter'},
     ),
     fontRoleField(
       'prose',
@@ -131,11 +150,6 @@ export const siteTypographyType = defineType({
       'lightUi',
       'Light emphasis',
       'Lighter subheads or de-emphasized UI where used.',
-    ),
-    fontRoleField(
-      'accent',
-      'Accent / display',
-      'Captions in abstraction mode, display moments.',
     ),
   ],
   preview: {

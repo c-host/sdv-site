@@ -1,4 +1,6 @@
 /* --- Variables (neutral, minimal) --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
 :root {
   --bg: #E0DBD7;
   --fg: #1a1a1a;
@@ -9,12 +11,11 @@
   --gap: 1rem;
   --gap-large: 2.5rem;
   --radius: 2px;
-  --font: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   /* Filled or overridden by js/content-loader.js from Sanity Typography (see siteTypography). */
   --font-prose: var(--font);
   --font-strong: var(--font);
   --font-light: var(--font);
-  --font-accent: var(--font);
   --inset: 20pt;
   --abstraction-margin: 48pt;
 }
@@ -73,67 +74,45 @@ img {
 }
 
 .home-sdv-mark {
-  position: absolute;
-  pointer-events: none;
-  font-family: var(--font-strong), var(--font);
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  color: var(--fg);
-  opacity: 0.82;
-  z-index: 2;
   display: none;
 }
 
-.view--home:not(.is-home-idle) .home-sdv-mark {
-  display: block;
+.home-info-btn {
+  position: absolute;
+  top: var(--gap);
+  right: var(--gap);
+  z-index: 10;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-family: var(--font-strong), var(--font);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.home-info-btn:hover,
+.home-info-btn[aria-expanded="true"] {
+  background: rgba(0, 0, 0, .9);
+  color: #f5f5f5;
+}
+
+.home-info-btn:focus-visible {
+  outline: 2px solid rgba(0, 0, 0, .4);
+  outline-offset: 2px;
 }
 
 @media (min-width: 600px) {
-  .view--home:not(.is-home-idle) .home-sdv-mark {
-    bottom: var(--gap);
+  .home-info-btn {
     right: var(--gap);
-    top: auto;
     left: auto;
   }
 }
 
 @media (max-width: 599px) {
-  .view--home:not(.is-home-idle) .home-sdv-mark {
-    top: var(--gap);
-    left: var(--gap);
-    bottom: auto;
-    right: auto;
-  }
-}
-
-.home-info-link {
-  position: absolute;
-  top: var(--gap);
-  right: var(--gap);
-  color: var(--fg);
-  text-decoration: none;
-  font-size: 1.5rem;
-  z-index: 2;
-}
-
-@media (max-width: 599px) {
-  .home-info-link {
-    top: var(--gap);
-    right: var(--gap);
-    transform: none;
-    width: 2.25rem;
-    height: 2.25rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg);
-    border: 1px solid var(--line);
-    font-size: 1.2rem;
-    line-height: 1;
-  }
-
   #home-material-filter {
     display: none !important;
   }
@@ -143,22 +122,23 @@ img {
   position: absolute;
   top: var(--gap);
   left: var(--gap);
-  right: calc(var(--gap) + 2.25rem);
+  right: 50%;
   z-index: 2;
   display: flex;
   align-items: flex-start;
   gap: 0.35rem;
   pointer-events: auto;
-  /* Never overlap the top-right info icon; allow ellipsis instead */
-  max-width: none;
+  max-width: calc(50% - var(--gap) * 2);
+  box-sizing: border-box;
   flex-direction: column;
 }
 
 .home-material-meta {
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  min-height: 1.2rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.12rem;
+  min-height: 0;
 }
 
 .home-material-title {
@@ -168,16 +148,18 @@ img {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   opacity: 0.7;
+  line-height: 1.2;
 }
 
 .home-material-status {
   font-family: var(--font-prose), var(--font);
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   opacity: 0.7;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
   max-width: 100%;
+  line-height: 1.25;
 }
 
 .home-material-row {
@@ -247,6 +229,176 @@ img {
   }
 }
 
+.home-name-stacey,
+.home-name-devoe {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  font-family: var(--font-strong), var(--font);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: clamp(1.8rem, 3.2vw, 2.25rem);
+  color: var(--fg);
+  white-space: nowrap;
+  line-height: 1;
+  padding: 0;
+  margin: 0;
+}
+
+.home-name-stacey {
+  letter-spacing: 0.06em;
+  margin-right: -0.06em;
+}
+
+.home-name-devoe {
+  letter-spacing: 0.06em;
+}
+
+@media (min-width: 600px) {
+  .home-name-stacey {
+    right: calc(50% + 0.65rem);
+    top: calc(50% - 0.35rem);
+    transform: translateY(-100%);
+    text-align: right;
+  }
+
+  .home-name-devoe {
+    left: calc(50% + 0.65rem);
+    top: calc(50% + 0.35rem);
+    text-align: left;
+  }
+}
+
+@media (max-width: 599px) {
+  .home-name-stacey {
+    left: 40%;
+    right: auto;
+    bottom: 48%;
+    transform: translate(-50%, calc(-100% - 0.4rem));
+    text-align: center;
+    margin-right: 0;
+  }
+
+  .home-name-devoe {
+    left: 60%;
+    right: auto;
+    top: 50%;
+    transform: translate(-50%, 0.4rem);
+    text-align: center;
+  }
+}
+
+.view--home.is-info-open .home-name-stacey,
+.view--home.is-info-open .home-name-devoe,
+.view--home.is-info-shelved .home-name-stacey,
+.view--home.is-info-shelved .home-name-devoe {
+  display: none;
+}
+
+/* SDV mark appears after info panel finishes sliding in (desktop). */
+@media (min-width: 600px) {
+  .view--home.is-info-shelved.is-info-sdv-visible .home-sdv-mark {
+    display: block;
+    position: absolute;
+    right: var(--gap);
+    bottom: var(--gap);
+    pointer-events: none;
+    font-family: var(--font-strong), var(--font);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: clamp(0.55rem, 1.5vw, 0.85rem);
+  }
+}
+
+/* Mobile: same SDV mark delayed reveal; top-left when info panel is closed. */
+@media (max-width: 599px) {
+  .view--home.is-info-shelved.is-info-sdv-visible .home-sdv-mark {
+    display: block;
+    position: absolute;
+    top: var(--gap);
+    left: var(--gap);
+    z-index: 5;
+    pointer-events: none;
+    font-family: var(--font-strong), var(--font);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+  }
+
+  .view--home.is-info-open .home-sdv-mark {
+    display: none;
+  }
+}
+
+.home-info-panel {
+  position: absolute;
+  z-index: 4;
+  background: var(--bg);
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 0.35s ease, visibility 0.35s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-info-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: calc(var(--gap-large) + 0.75rem);
+  padding-top: calc(var(--gap-large) + 0.5rem);
+}
+
+.home-info-scroll p {
+  margin: 0 0 0.75rem;
+}
+
+@media (min-width: 600px) {
+  .home-info-panel {
+    top: 0;
+    right: 0;
+    width: 50%;
+    height: 100%;
+    transform: translateX(100%);
+    border-left: 1px solid var(--line);
+  }
+
+  .view--home.is-info-open .home-info-panel {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .home-info-scroll {
+    padding-top: calc(var(--gap-large) + 2.5rem);
+  }
+}
+
+@media (max-width: 599px) {
+  .home-info-panel {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    max-height: 50%;
+    transform: translateY(-100%);
+    border-bottom: none;
+  }
+
+  .view--home.is-info-open .home-info-panel {
+    transform: translateY(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .home-info-scroll {
+    padding-top: calc(var(--gap) + 2.5rem);
+  }
+}
+
 .home-main {
   position: relative;
   z-index: 1;
@@ -255,163 +407,17 @@ img {
   min-height: 0;
 }
 
-/* Image + zoom: always dead center, never move */
-.home-center {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--gap);
-  flex-shrink: 0;
-  z-index: 0;
-  /* Let clicks pass through flex gaps so project list (z-index above) stays usable on short viewports. */
-  pointer-events: none;
-}
-
-@media (max-width: 599px) {
-  .home-center {
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-  }
-}
-
-.home-image-wrap {
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
-  /* Re-enable hits: .home-center uses pointer-events:none (inherits to children without this). */
-  pointer-events: auto;
-  container-type: size;
-  container-name: homeimage;
-  width: 200px;
-  height: 200px;
-  border: 2px solid var(--home-line-accent);
-  box-sizing: border-box;
-  /* Opaque fill so viewport crosshair (.home-line) does not show through the square. */
-  background: var(--bg);
-}
-
-.view--home.is-home-idle .home-image-wrap {
-  cursor: default;
-}
-
-.view--home:not(.is-home-idle) .home-image-wrap {
-  cursor: pointer;
-}
-
-@media (min-width: 600px) {
-  .home-image-wrap {
-    width: clamp(200px, 25vw, 280px);
-    height: clamp(200px, 25vw, 280px);
-  }
-}
-
-.home-idle-title {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 0.2em 0.15em;
-  box-sizing: border-box;
-  font-family: var(--font-strong), var(--font);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  line-height: 1.05;
-  text-transform: uppercase;
-  color: var(--fg);
-  pointer-events: none;
-  font-size: clamp(0.65rem, 22cqmin, 2.85rem);
-}
-
-.home-image-wrap.is-project-selected .home-idle-title {
-  display: none;
-}
-
-.home-image-wrap img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border: none;
-  box-sizing: border-box;
-}
-
-.home-zoom-btn {
-  padding: 6px 6.8px 5px 7px;
-  border: 1px solid var(--home-line-accent);
-  background: var(--bg);
-  color: var(--fg);
-  cursor: pointer;
-  pointer-events: auto;
-}
-
-.view--home.is-home-idle .home-zoom-btn {
-  display: none;
-}
-
-.home-zoom-btn .icon-magnifier {
-  width: 24px;
-  height: 24px;
-}
-
-@media (min-width: 600px) {
-  .home-zoom-btn {
-    order: 1;
-  }
-}
-
-@media (max-width: 599px) {
-  .home-zoom-btn {
-    margin-left: var(--gap);
-  }
-}
-
 @media (max-width: 420px) {
   .view--home {
     --gap: 0.65rem;
   }
-
-  .home-image-wrap {
-    width: min(168px, 46vw);
-    height: min(168px, 46vw);
-  }
-
-  .home-zoom-btn {
-    padding: 4px 5px 3px 5px;
-    margin-left: 0.5rem;
-  }
-
-  .home-zoom-btn .icon-magnifier {
-    width: 20px;
-    height: 20px;
-  }
-
-  .home-info-link {
-    width: 2rem;
-    height: 2rem;
-    font-size: 1.05rem;
-  }
-
-  .home-center {
-    gap: 0.5rem;
-  }
-
-  .view--home:not(.is-home-idle) .home-sdv-mark {
-    font-size: 0.62rem;
-    letter-spacing: 0.1em;
-  }
 }
 
-/* Titles: full width of one side of the line, no wrap, no intersection with image */
+/* Titles: full width of one side of the line */
 .home-projects {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.3rem;
   padding: var(--gap);
   box-sizing: border-box;
   position: relative;
@@ -422,10 +428,13 @@ img {
   .home-projects {
     position: absolute;
     left: 0;
+    top: 0;
     bottom: 0;
-    padding-right: var(--gap);
+    width: 50%;
+    padding: 0;
+    padding-right: calc(var(--gap) + 0.25rem);
     box-sizing: border-box;
-    justify-content: center;
+    justify-content: flex-end;
     align-items: flex-start;
     text-align: left;
   }
@@ -436,32 +445,27 @@ img {
     position: absolute;
     left: 0;
     right: 0;
+    top: auto;
     bottom: 0;
-    padding-top: 52vh;
-    padding-bottom: 0;
-    padding-right: 0;
-    padding-left: 0;
+    padding: 0;
+    padding-top: 0;
+    justify-content: flex-end;
     align-items: flex-start;
     text-align: left;
-    /* Padding-top reserves space visually but must not steal taps from the centered image + zoom (z-index below). */
-    pointer-events: none;
-  }
-
-  .home-projects .home-project {
-    pointer-events: auto;
   }
 }
 
-/* Big impact titles: law-fragment style, all caps, no line wrap */
+/* Big impact titles: all caps, no line wrap */
 .home-project {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.5rem;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   width: 100%;
-  padding: 0;
+  padding: 0.15rem 0.25rem;
   border: none;
   background: none;
-  font: inherit;
+  font-family: var(--font-strong), var(--font);
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.2;
@@ -470,8 +474,9 @@ img {
   text-align: inherit;
   text-decoration: none;
   text-transform: uppercase;
-  transition: color 0.2s ease-out;
+  transition: background 0.2s ease-out, color 0.2s ease-out;
   font-size: clamp(1rem, 2.8vw, 1.5rem);
+  box-sizing: border-box;
 }
 
 .home-project-label {
@@ -483,11 +488,28 @@ img {
 }
 
 .home-project-material-icons {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  opacity: 0.9;
   flex: 0 0 auto;
+  display: none;
+  align-items: center;
+  gap: 0.2rem;
+  opacity: 0.9;
+  pointer-events: none;
+  line-height: 0;
+  max-width: 42%;
+  overflow: hidden;
+  justify-content: flex-end;
+}
+
+.home-project-material-icons .home-material-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+@media (min-width: 600px) {
+  .home-project-material-icons {
+    display: inline-flex;
+  }
 }
 
 .home-project.is-active .home-project-material-icons {
@@ -509,8 +531,10 @@ img {
   }
 }
 
-.home-project:hover {
-  color: var(--muted);
+.home-project:hover,
+.home-project:focus-visible {
+  background: rgba(0, 0, 0, .9);
+  color: #f5f5f5;
 }
 
 .home-project.is-active {
@@ -586,7 +610,7 @@ img {
   padding: 0 var(--gap-large) var(--gap-large) var(--gap-large);
 }
 
-/* Hide scrollbars on main views (home, overview, immersive, info) while keeping abstraction inset scroll visible */
+/* Hide scrollbars on main views (home, overview, immersive, info) */
 .view,
 .info-scroll,
 .project-scroll,
@@ -617,15 +641,73 @@ img {
 
 .project-back {
   flex-shrink: 0;
-  padding: 1rem 1.25rem 0.75rem 1.5rem;
+  padding: 0;
+  margin: 0;
   color: var(--fg);
   text-decoration: none;
   font-family: var(--font-strong), var(--font);
+  line-height: 1.2;
+}
+
+.project-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.45rem;
+  padding-top: 0;
+}
+
+@media (min-width: 600px) {
+  .view--project {
+    --project-col-inset: var(--gap-large);
+    --project-top-inset: var(--gap-large);
+  }
+
+  .project-pane--text .project-scroll,
+  .project-pane--text .project-header,
+  .project-pane--images .project-scroll {
+    padding-left: var(--project-col-inset);
+    padding-right: var(--project-col-inset);
+  }
+
+  /* Shared top inset keeps title row and tab row on the same horizontal line. */
+  .project-pane--text .project-header {
+    padding-top: var(--project-top-inset);
+  }
+
+  .project-pane--images .project-scroll.project-images {
+    padding-top: var(--project-top-inset);
+  }
+
+  .project-timeline-wrap {
+    top: 0;
+  }
+
+  .project-timeline {
+    padding-top: 0;
+  }
+}
+
+.project-header .project-back {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.project-header h2 {
+  margin: 0;
+  padding: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  font-family: var(--font-strong), var(--font);
+  position: static;
+  background: transparent;
+  line-height: 1.2;
 }
 
 .project-split {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
 }
@@ -666,6 +748,7 @@ img {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   border-right: 1px solid var(--line);
 }
 
@@ -685,6 +768,19 @@ img {
   .project-pane--images {
     border-left: none;
   }
+
+  /* Text pane: inset wide enough that body copy clears split-line chevrons (left/right). */
+  .project-pane--text .project-header,
+  .project-pane--text .project-scroll {
+    padding-left: calc(var(--gap) + 2.75rem);
+    padding-right: calc(var(--gap) + 2.75rem);
+  }
+
+  .project-pane--images .project-scroll,
+  .project-pane--images .project-scroll.project-images {
+    padding-left: calc(var(--gap) + 2.75rem);
+    padding-right: calc(var(--gap) + 2.75rem);
+  }
 }
 
 .project-scroll {
@@ -692,14 +788,8 @@ img {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 2.5rem 2.5rem 0rem 2.5rem;
+  padding: var(--gap-large) var(--gap-large) 0 var(--gap-large);
   padding-top: 0;
-}
-
-/* Give the text column a bit more breathing room without changing the image column. */
-.project-pane--text .project-scroll {
-  padding-left: calc(var(--gap-large) * 1.5);
-  padding-right: calc(var(--gap-large) * 1.5);
 }
 
 .project-scroll h2 {
@@ -744,18 +834,19 @@ img {
   gap: var(--gap);
 }
 
-/* Default project galleries (single list) must remain vertically scrollable. */
+/* Default project galleries (single list); vertically scrollable. */
 .project-scroll.project-images {
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-/* FALL galleries: the outer column doesn't scroll; each panel owns vertical scroll. */
+/* TAB galleries: the outer column doesn't scroll; each panel owns vertical scroll. */
 .project-scroll.project-images.has-falls {
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
 }
 
 .project-images img {
@@ -769,15 +860,34 @@ img {
   right: 0;
   top: var(--split, 50%);
   transform: translateY(-50%);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   pointer-events: none;
   z-index: 4;
 }
 
-.project-zoom-wrap .project-zoom-btn {
+.project-zoom-wrap .project-zoom-btn,
+.project-zoom-wrap .project-zoom-shift {
   pointer-events: auto;
+}
+
+@media (max-width: 599px) {
+
+  /* Mobile: always show split controls on the dividing line. */
+  .project-zoom-wrap {
+    display: flex;
+  }
+
+  .view--project:not(.is-publication-tab) .project-zoom-btn {
+    display: none;
+  }
+}
+
+@media (min-width: 600px) {
+  .view--project.is-publication-tab .project-zoom-wrap {
+    display: flex;
+  }
 }
 
 .project-zoom-btn {
@@ -797,18 +907,57 @@ img {
 
   /* On mobile, zoom controls are anchored to .project-split (not the viewport). */
 
-  .project-pane--text .project-scroll {
-    padding-bottom: calc(var(--gap-large) * 1.8);
+  .view--project {
+    --gap-large: 1.15rem;
   }
 
-  .project-pane--images .project-scroll {
-    padding-top: calc(var(--gap-large) * 1.8);
-  }
-
-  /* If the image column has an internal timeline, don't push it down so far.
-     The timeline itself is sticky; extra top padding just wastes image space. */
-  .project-pane--images .project-scroll.project-images {
+  .project-pane--text .project-header {
     padding-top: var(--gap-large);
+  }
+
+  .project-pane--text .project-scroll {
+    padding-bottom: 1.35rem;
+  }
+
+  .project-header h2 {
+    font-size: 1.05rem;
+  }
+
+  .project-header .project-back {
+    font-size: 1.05rem;
+  }
+
+  .project-scroll p,
+  .project-scroll li,
+  #project-overview-text p,
+  #project-overview-text li {
+    font-size: 0.875rem;
+    line-height: 1.55;
+  }
+
+  .project-scroll h2,
+  #project-overview-text h2 {
+    font-size: 0.98rem;
+  }
+
+  .project-scroll h3,
+  #project-overview-text h3 {
+    font-size: 0.9rem;
+    margin-top: 1.1rem;
+  }
+
+  .project-fall-meta {
+    font-size: 0.72rem;
+  }
+
+  .project-timeline__item {
+    font-size: 0.72rem;
+  }
+
+  .project-pane--images .project-scroll,
+  .project-pane--images .project-scroll.project-images {
+    /* Clearance for split-line chevrons above the tab strip */
+    padding-top: 2rem;
   }
 }
 
@@ -817,6 +966,10 @@ img {
   /* Split mode variables live on the shared project view so the overlay can follow. */
   .view--project {
     --split: 50%;
+  }
+
+  .project-timeline-wrap {
+    top: 0;
   }
 
   .view--project[data-split="balanced"] {
@@ -902,7 +1055,7 @@ img {
 }
 
 /* ========== IMMERSIVE ========== */
-/* Hook for full control: .immersive-page is the section; .immersive-main is the full-bleed content area; .immersive-inner wraps your content */
+/* Layout: .immersive-page (section), .immersive-main (full bleed), .immersive-inner (content) */
 .view--immersive.immersive-page {
   padding: 0;
   align-items: stretch;
@@ -916,17 +1069,29 @@ img {
   right: 0;
   z-index: 10;
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--gap);
   padding: 0.75rem 1rem 0.75rem 1rem;
-  background: var(--bg);
+  background: transparent;
 }
 
 .immersive-nav a {
-  color: var(--fg);
+  color: #fff;
   text-decoration: none;
+  text-shadow:
+    0 0 4px #000,
+    0 0 8px #000,
+    0 1px 2px #000,
+    1px 0 2px #000,
+    0 1px 2px #000,
+    -1px 0 2px #000,
+    0 -1px 2px #000,
+    1px 1px 3px #000;
 }
 
 .immersive-nav a:hover {
+  color: #fff;
   text-decoration: underline;
 }
 
@@ -935,51 +1100,9 @@ img {
   font-weight: 600;
 }
 
-/* Immersive photo-story + overlocked: transparent nav so content runs edge-to-edge under the link */
-.immersive-page[data-slug="overlocked"] .immersive-nav,
-.immersive-page[data-slug="under-the-needles-eye"] .immersive-nav {
-  background: transparent;
-}
-
-.immersive-page[data-slug="overlocked"] .immersive-nav a,
-.immersive-page[data-slug="under-the-needles-eye"] .immersive-nav a {
-  color: #fff;
-  text-shadow:
-    0 0 4px #000,
-    0 0 8px #000,
-    0 1px 2px #000,
-    1px 0 2px #000,
-    0 1px 2px #000,
-    -1px 0 2px #000,
-    0 -1px 2px #000,
-    1px 1px 3px #000;
-}
-
-.immersive-page[data-slug="overlocked"] .immersive-nav a:hover,
-.immersive-page[data-slug="under-the-needles-eye"] .immersive-nav a:hover {
-  color: #fff;
-}
-
-/* In abstraction view: over the image, no solid background; contrast so readable on any image */
-.immersive-page.is-abstracted .immersive-nav {
-  background: transparent;
-}
-
-.immersive-page.is-abstracted .immersive-nav a {
-  color: #fff;
-  text-shadow:
-    0 0 4px #000,
-    0 0 8px #000,
-    0 1px 2px #000,
-    1px 0 2px #000,
-    0 1px 2px #000,
-    -1px 0 2px #000,
-    0 -1px 2px #000,
-    1px 1px 3px #000;
-}
-
-.immersive-page.is-abstracted .immersive-nav a:hover {
-  color: #fff;
+.immersive-index-link {
+  font-family: var(--font-strong), var(--font);
+  font-weight: 600;
 }
 
 .immersive-main {
@@ -998,21 +1121,6 @@ img {
   padding: var(--gap);
   /* Clear the absolute Overview nav so first line isn’t cut off */
   padding-top: calc(2 * var(--gap) + 2em);
-}
-
-/* Full-bleed immersive when content is the photo story */
-.immersive-main:has(.immersive-story) {
-  overflow: hidden;
-}
-
-.immersive-inner:has(.immersive-story) {
-  padding: 0;
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: stretch;
-  padding-top: 0;
 }
 
 /* Full-bleed immersive when content is the overlocked flyer (match photo-story layout) */
@@ -1036,247 +1144,6 @@ img {
   padding: 2rem;
   background: rgba(0, 0, 0, .04);
   color: var(--muted);
-}
-
-/* Immersive legal-text layout (project 1) */
-.law-layout {
-  width: 100%;
-  width: 100%;
-  max-width: 60rem;
-}
-
-.law-text {
-  font-size: 1rem;
-  line-height: 1.6;
-  text-align: center;
-  margin-inline: auto;
-}
-
-.law-heading {
-  font-size: 1.6rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  margin: 0 0 1.5rem;
-  text-transform: uppercase;
-}
-
-.law-hint {
-  margin: 0 0 1.5rem;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-.law-fragment {
-  border: none;
-  background: none;
-  padding: 0 0.25rem 0.1rem;
-  margin: 0 -0.1rem;
-  font: inherit;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  text-transform: uppercase;
-  color: var(--fg);
-  text-align: left;
-  transition:
-    transform 0.7s ease-out,
-    background 0.2s ease-out,
-    color 0.2s ease-out;
-}
-
-.law-fragment:hover {
-  background: rgba(0, 0, 0, .06);
-}
-
-.law-fragment.is-active {
-  background: rgba(0, 0, 0, .9);
-  color: #f5f5f5;
-}
-
-.law-image-inline {
-  position: relative;
-}
-
-.law-image-inline:empty {
-  display: none;
-}
-
-.law-image-inline:not(:empty) {
-  display: block;
-}
-
-.law-image-inline img {
-  width: 100%;
-  max-width: 100%;
-  object-fit: cover;
-  margin-top: 0.75rem;
-}
-
-/* Optional close affordance if you introduce a clickable \"close\" element over inline images */
-.law-image-close:hover {
-  background: rgba(0, 0, 0, 0.6);
-}
-
-/* Per-project immersive fragment layouts (each immersive/N.html can use any structure) */
-.immersive-split {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--gap);
-  width: 100%;
-  max-width: 70rem;
-}
-
-@media (max-width: 599px) {
-  .immersive-split {
-    grid-template-columns: 1fr;
-  }
-}
-
-.immersive-split__media img {
-  width: 100%;
-  display: block;
-}
-
-.immersive-split__text {
-  color: var(--muted);
-}
-
-.immersive-story {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  color: #fff;
-}
-
-.immersive-story__image-wrap {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  contain: paint;
-  transform: translateZ(0);
-}
-
-.immersive-story__image {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition:
-    filter 0.7s ease,
-    opacity 0.7s ease,
-    transform 0.7s ease;
-  filter: blur(0);
-  opacity: 1;
-  transform: translateZ(0) scale(1);
-  backface-visibility: hidden;
-}
-
-.immersive-story__image--a {
-  z-index: 1;
-}
-
-.immersive-story__image--b {
-  z-index: 0;
-}
-
-.immersive-story__image.is-front {
-  z-index: 1;
-}
-
-.immersive-story__image:not(.is-front) {
-  z-index: 0;
-}
-
-.immersive-story__image.is-transitioning {
-  filter: blur(8px);
-  opacity: 0;
-  transform: translateZ(0) scale(1.03);
-  pointer-events: none;
-  will-change: filter, opacity, transform;
-}
-
-.immersive-story__nav {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3rem;
-  height: 3rem;
-  border: none;
-  background: rgba(0, 0, 0, 0.5);
-  color: #fff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  line-height: 1;
-  z-index: 10;
-}
-
-.immersive-story__nav--prev {
-  left: var(--gap);
-}
-
-.immersive-story__nav--next {
-  right: var(--gap);
-}
-
-.immersive-story__nav:hover {
-  background: rgba(0, 0, 0, 0.7);
-}
-
-.immersive-story__text {
-  position: relative;
-  z-index: 1;
-  font-family: var(--font-light), var(--font);
-  margin-top: auto;
-  padding: 2.5rem 2.5rem 2.75rem;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 40%, transparent);
-  transform: translateZ(0);
-}
-
-.immersive-story__text h2 {
-  margin: 0 1.5rem 1.5rem;
-  font-size: 1.6rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-family: var(--font-strong), var(--font);
-  font-weight: 600;
-}
-
-.immersive-story__text p {
-  margin: 0 1.5rem 1.5rem;
-  font-size: 0.98rem;
-}
-
-@media (max-width: 599px) {
-  .immersive-story__text {
-    padding: 1.5rem 1.5rem 2rem;
-  }
-
-  .immersive-story__nav {
-    width: 2.5rem;
-    height: 2.5rem;
-    font-size: 1.6rem;
-  }
-}
-
-.immersive-quote {
-  max-width: 50ch;
-  padding: 2rem;
-  font-size: 1.25rem;
-  color: var(--muted);
-}
-
-.immersive-quote cite {
-  display: block;
-  margin-top: 1rem;
-  font-size: 0.9rem;
 }
 
 /* Overlocked: single archival scan + drag + loupe */
@@ -1315,12 +1182,20 @@ img {
     0 12px 40px rgba(0, 0, 0, 0.18),
     0 2px 8px rgba(0, 0, 0, 0.08);
   border-radius: 0;
-  cursor: none;
+  cursor: default;
   touch-action: none;
   overflow: hidden;
 }
 
-.immersive-flyer__viewport.is-dragging {
+.immersive-flyer__viewport.is-loupe-active {
+  cursor: none;
+}
+
+.immersive-flyer__viewport.is-dragging:not(.is-loupe-active) {
+  cursor: grabbing;
+}
+
+.immersive-flyer__viewport.is-dragging.is-loupe-active {
   cursor: none;
 }
 
@@ -1345,7 +1220,7 @@ img {
   -webkit-user-select: none;
 }
 
-/* In-canvas hint + tools: bottom-right stack; panel can collapse via toggle */
+/* In-canvas tools: bottom-right stack */
 .immersive-flyer__hud {
   position: absolute;
   inset: 0;
@@ -1360,43 +1235,6 @@ img {
     0 max(1rem, env(safe-area-inset-right)) max(var(--gap), env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
 }
 
-/* Collapsed: + control bottom-right, same inset as page chrome; size matches abstraction btn (~2rem) */
-.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud {
-  align-items: flex-end;
-  justify-content: flex-end;
-  padding-left: max(0.5rem, env(safe-area-inset-left));
-  padding-right: max(var(--gap), env(safe-area-inset-right));
-  padding-bottom: max(var(--gap), env(safe-area-inset-bottom));
-}
-
-.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-panel {
-  align-items: flex-end;
-  align-self: flex-end;
-}
-
-.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-tools {
-  justify-content: flex-end;
-  align-items: center;
-}
-
-/*
- * Match .immersive-abstraction-btn footprint (24px icon + 0.25rem padding each side) at every breakpoint
- * so the + lines up horizontally with the abstraction control when HUD is collapsed.
- */
-.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-toggle.immersive-flyer__tool-btn {
-  width: 2rem;
-  height: 2rem;
-  min-width: 2rem;
-  min-height: 2rem;
-  box-sizing: border-box;
-  padding: 0;
-}
-
-.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-toggle svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
 .immersive-flyer__hud-panel {
   display: flex;
   flex-direction: column;
@@ -1404,14 +1242,6 @@ img {
   gap: 0.35rem;
   max-width: min(100%, 38rem);
   pointer-events: none;
-}
-
-.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-tools>.immersive-flyer__tool-btn:not(.immersive-flyer__hud-toggle) {
-  display: none;
-}
-
-.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-hint {
-  display: none;
 }
 
 .immersive-flyer__hud-tools {
@@ -1458,60 +1288,6 @@ img {
   height: var(--flyer-hud-icon);
 }
 
-/* Toggle shares .immersive-flyer__tool-btn; only icon swap rules below */
-
-.immersive-flyer__hud-toggle .immersive-flyer__hud-toggle-plus {
-  display: none;
-}
-
-.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-toggle .immersive-flyer__hud-toggle-minus {
-  display: none;
-}
-
-.immersive-flyer.is-flyer-help-hidden .immersive-flyer__hud-toggle .immersive-flyer__hud-toggle-plus {
-  display: block;
-}
-
-.immersive-flyer__hud-hint {
-  margin: 0;
-  font-family: var(--font-light), var(--font);
-  font-size: var(--flyer-hud-hint);
-  line-height: 1.35;
-  letter-spacing: 0.02em;
-  color: #000000;
-  white-space: normal;
-  overflow: visible;
-  text-align: right;
-  max-width: 100%;
-  text-shadow:
-    0 0 2px #fff,
-    0 0 6px #fff,
-    1px 0 0 #fff,
-    -1px 0 0 #fff,
-    0 1px 0 #fff,
-    0 -1px 0 #fff,
-    1px 1px 0 #fff,
-    -1px -1px 0 #fff;
-}
-
-.immersive-flyer__hud-hint--touch {
-  display: none;
-}
-
-@media (pointer: coarse) {
-  .immersive-flyer__hud-hint--desktop {
-    display: none;
-  }
-
-  .immersive-flyer__hud-hint--touch {
-    display: block;
-  }
-}
-
-.immersive-page.is-chrome-collapsed .immersive-flyer__hud {
-  visibility: hidden;
-}
-
 @media (max-width: 1024px) {
   .immersive-flyer {
     --flyer-hud-btn: 2.1rem;
@@ -1545,98 +1321,6 @@ img {
   .immersive-flyer__hud-tools {
     gap: 0.15rem;
   }
-}
-
-/* Fixed chrome: above abstraction panel; aligns with bottom-left loupe exit */
-.immersive-chrome-dock {
-  position: fixed;
-  z-index: 12;
-  left: max(0.5rem, env(safe-area-inset-left));
-  bottom: max(0.5rem, env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-  max-width: calc(100vw - 1rem);
-}
-
-.immersive-chrome-dock__tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.immersive-chrome-dock__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-  border: none;
-  border-radius: 2px;
-  background: transparent;
-  color: #fff;
-  cursor: pointer;
-  filter: drop-shadow(0 0 2px #000) drop-shadow(0 0 4px #000) drop-shadow(1px 1px 2px #000);
-}
-
-.immersive-chrome-dock__btn:hover {
-  color: #fff;
-  opacity: 0.92;
-}
-
-.immersive-chrome-dock__btn svg {
-  width: 22px;
-  height: 22px;
-}
-
-.immersive-chrome-dock__btn .icon-abstraction {
-  width: 22px;
-  height: 22px;
-}
-
-.immersive-page.is-chrome-collapsed .immersive-chrome-dock {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.immersive-page.is-chrome-collapsed .immersive-chrome-dock * {
-  pointer-events: none !important;
-}
-
-.immersive-page.is-chrome-collapsed .immersive-nav {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.immersive-page.is-chrome-collapsed .immersive-story__hud-hint {
-  visibility: hidden;
-}
-
-.immersive-story__hud-hint {
-  position: absolute;
-  left: 0.5rem;
-  right: 0.5rem;
-  bottom: 5.25rem;
-  z-index: 12;
-  margin: 0;
-  font-family: var(--font-light), var(--font);
-  font-size: 0.65rem;
-  line-height: 1.35;
-  color: #fff;
-  white-space: nowrap;
-  overflow-x: auto;
-  pointer-events: none;
-  text-align: center;
-  -webkit-text-stroke: 0.35px rgba(0, 0, 0, 0.85);
-  text-shadow:
-    0 0 4px #000,
-    0 0 8px #000,
-    0 1px 2px #000,
-    1px 0 2px #000,
-    -1px 0 2px #000;
 }
 
 .immersive-flyer__pan {
@@ -1679,7 +1363,7 @@ img {
   pointer-events: auto;
 }
 
-/* Fits inside mat; pan + Alt zoom add motion and scale */
+/* Fits inside mat paper */
 .immersive-flyer__img {
   display: block;
   width: auto;
@@ -1690,6 +1374,42 @@ img {
   pointer-events: auto;
   user-select: none;
   -webkit-user-drag: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.immersive-flyer__img.is-ready {
+  opacity: 1;
+}
+
+.immersive-flyer__img.is-preview {
+  filter: blur(1px);
+}
+
+.immersive-flyer__loading {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  width: 2rem;
+  height: 2rem;
+  margin: -1rem 0 0 -1rem;
+  border: 2px solid rgba(0, 0, 0, 0.12);
+  border-top-color: rgba(0, 0, 0, 0.55);
+  border-radius: 50%;
+  animation: immersive-flyer-spin 0.75s linear infinite;
+  pointer-events: none;
+}
+
+.immersive-flyer.is-image-loading .immersive-flyer__loading {
+  display: block;
+}
+
+@keyframes immersive-flyer-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Loupe: disk + magnifier stroke (matches site icon) */
@@ -1755,253 +1475,65 @@ img {
   overflow: visible;
 }
 
-/* Dance & legacy: section-level abstraction control */
-.immersive-page>.immersive-abstraction-btn {
-  position: absolute;
-  bottom: var(--gap);
-  left: var(--gap);
-  z-index: 10;
-  border: none;
-  background: transparent;
-  color: #fff;
-  cursor: pointer;
-  padding: 0.25rem;
-  filter: drop-shadow(0 0 2px #000) drop-shadow(0 0 4px #000) drop-shadow(1px 1px 2px #000) drop-shadow(-1px -1px 2px #000);
-}
-
-.immersive-abstraction-btn .icon-abstraction {
-  width: 24px;
-  height: 24px;
-}
-
-/* In abstraction view: keep the same white, outlined icon on the left */
-.immersive-page.is-abstracted .immersive-abstraction-btn {
-  background: transparent;
-  color: #fff;
-}
-
-/* Backdrop image (when caption clicked); above main content, below panel so margin shows image */
-.abstraction-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #000;
+.project-gallery-panel-scroll img {
   cursor: pointer;
 }
 
-/* Zoom-into-project button: shown when backdrop image is visible; above panel so it’s clickable */
-.backdrop-zoom-btn {
-  position: absolute;
-  bottom: var(--gap);
-  right: var(--gap);
-  left: auto;
-  z-index: 14;
-  background: transparent;
-  color: #fff;
-  filter: drop-shadow(0 0 2px #000) drop-shadow(0 0 4px #000) drop-shadow(1px 1px 2px #000) drop-shadow(-1px -1px 2px #000);
-  cursor: pointer;
-}
-
-.backdrop-zoom-btn[hidden] {
-  display: none !important;
-}
-
-.backdrop-zoom-btn .icon-magnifier {
-  width: 24px;
-  height: 24px;
+/* Image lightbox */
+.image-lightbox {
   position: fixed;
-  right: 0.5rem;
-  bottom: 0.5rem;
-  z-index: 15;
-}
-
-.abstraction-backdrop::before {
-  content: "";
-  position: absolute;
   inset: 0;
-  pointer-events: none;
-  opacity: 0.2;
-  mix-blend-mode: soft-light;
-  background-image:
-    repeating-linear-gradient(0deg,
-      rgba(255, 255, 255, 0.045) 0,
-      rgba(255, 255, 255, 0.045) 1px,
-      transparent 1px,
-      transparent 2px),
-    repeating-linear-gradient(90deg,
-      rgba(0, 0, 0, 0.35) 0,
-      rgba(0, 0, 0, 0.35) 1px,
-      transparent 1px,
-      transparent 2px);
-}
-
-.abstraction-backdrop[hidden] {
-  display: none !important;
-}
-
-.abstraction-backdrop img,
-.abstraction-backdrop-video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.8;
-}
-
-/* Abstraction mode: black background, inset + caption; transitions in/out */
-.immersive-abstraction {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  padding: var(--abstraction-margin);
-  padding-bottom: 5rem;
-  gap: var(--gap);
-  background: #000;
-  pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.35s ease, visibility 0.35s ease;
-  transform: translateZ(0);
-}
-
-.immersive-abstraction::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.18;
-  mix-blend-mode: soft-light;
-  background-image:
-    repeating-linear-gradient(0deg,
-      rgba(255, 255, 255, 0.04) 0,
-      rgba(255, 255, 255, 0.04) 1px,
-      transparent 1px,
-      transparent 2px),
-    repeating-linear-gradient(90deg,
-      rgba(0, 0, 0, 0.35) 0,
-      rgba(0, 0, 0, 0.35) 1px,
-      transparent 1px,
-      transparent 2px);
-}
-
-.immersive-abstraction.is-on {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: none;
-}
-
-.immersive-abstraction.is-on>* {
-  pointer-events: auto;
-}
-
-.abstraction-inset .immersive-inner:has(.immersive-flyer) {
-  padding: 0;
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: stretch;
-  max-width: none;
-  background: transparent;
-  box-shadow: none;
-}
-
-/* When caption image is shown, panel margin becomes transparent so image is visible */
-.immersive-page.backdrop-visible .immersive-abstraction {
-  background: transparent;
-}
-
-.abstraction-inset {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  border: 1px solid rgba(255, 255, 255, 0);
-  background: rgba(0, 0, 0, 1);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.6),
-    0 18px 45px rgba(0, 0, 0, 0.9);
-}
-
-.abstraction-inset .immersive-inner {
-  padding: var(--gap);
-  background: #f7f3ea;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
-}
-
-/* Photo story fills the whole abstraction inset */
-.abstraction-inset .immersive-inner:has(.immersive-story) {
-  padding: 0;
-  background: transparent;
-  box-shadow: none;
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-}
-
-/* Caption: same bottom row as abstraction button; left padding so caption sits beside button */
-.abstraction-caption-single {
-  position: absolute;
-  bottom: var(--gap);
-  left: var(--gap);
-  right: var(--gap);
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.5rem;
-  padding: 0 var(--gap);
-  background: transparent;
-  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.75);
 }
 
-.caption-current {
-  padding: 0.25rem 0.5rem;
+.image-lightbox[hidden] {
+  display: none !important;
+}
+
+.image-lightbox__close {
+  position: absolute;
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: max(0.75rem, env(safe-area-inset-right));
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border: none;
   background: transparent;
-  color: #b8860b;
-  font-family: var(--font-accent), var(--font);
-  font-weight: 400;
-  font-size: 1.4rem;
+  color: #fff;
+  font-family: var(--font-strong), var(--font);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
-  text-align: center;
-  /* Contrast outline so caption readable on any image */
-  text-shadow:
-    0 0 4px #000,
-    0 0 6px #000,
-    0 1px 2px #000,
-    1px 0 2px #000,
-    0 1px 2px #000,
-    -1px 0 2px #000,
-    0 -1px 2px #000;
-  /*
-    Caption “radiation” animation
-
-    Goal: make the caption feel subtly interactive (clickable) without turning it into a button/pill.
-    It should be readable on black AND on video/images.
-
-    How to tune:
-    - Speed: change the duration (currently 3.2s). Lower = more active; higher = calmer.
-      e.g. 2s = more urgent, 4s = more ambient.
-    - Pulse style: edit @keyframes captionRadiate below.
-      - filter drop-shadows = the "halo" around the text (works well on black).
-      - text-shadow gold layers = the "radiating" light (more defined edges).
-    - Intensity: increase/decrease the rgba alpha values (last numbers in rgba()).
-    - Size: increase/decrease the blur radii (the px numbers in drop-shadow/text-shadow).
-    - Hover/focus behavior: we pause the animation on :hover and :focus-visible
-      so it feels like the motion "freezes" when the user interacts.
-  */
-  animation: captionRadiate 3.2s ease-in-out infinite;
-  will-change: filter, text-shadow;
+  padding: 0.35rem;
 }
 
-.caption-current:hover {
-  animation-play-state: paused;
-  text-decoration: underline;
+.image-lightbox__img {
+  max-width: min(92vw, 1200px);
+  max-height: 88vh;
+  object-fit: contain;
+  pointer-events: auto;
+  user-select: none;
+  cursor: inherit;
+}
+
+/* Custom single-direction arrow cursors*/
+.image-lightbox.is-cursor-prev {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M17 7 L11 14 L17 21' fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 14 14, pointer;
+}
+
+.image-lightbox.is-cursor-next {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M11 7 L17 14 L11 21' fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 14 14, pointer;
+}
+
+.image-lightbox.is-cursor-default {
+  cursor: default;
 }
 
 .project-timeline {
@@ -2009,12 +1541,78 @@ img {
   top: 0;
   z-index: 2;
   display: flex;
-  gap: 0.9rem;
+  gap: 0.65rem 0.85rem;
   justify-content: flex-start;
   align-items: baseline;
-  padding: 0 0 .25rem 0;
+  flex-wrap: nowrap;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 0;
   background: transparent;
+  border-bottom: none;
+}
+
+.project-timeline::-webkit-scrollbar {
+  display: none;
+}
+
+.project-timeline-scroll {
+  display: flex;
+  align-items: baseline;
+  gap: 0.15rem;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  overflow: hidden;
   border-bottom: 1px solid rgba(0, 0, 0, 0.18);
+  padding-bottom: 0.25rem;
+}
+
+.project-timeline-nav {
+  flex-shrink: 0;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.project-timeline-nav svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.project-timeline-nav:hover:not(:disabled),
+.project-timeline-nav:focus-visible:not(:disabled) {
+  opacity: 1;
+}
+
+.project-timeline-nav:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.project-timeline-nav[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 599px) {
+  .project-timeline-nav {
+    display: none !important;
+  }
 }
 
 .project-timeline-wrap {
@@ -2022,6 +1620,9 @@ img {
   top: 0;
   z-index: 2;
   background: var(--bg);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .project-fall-meta {
@@ -2033,6 +1634,7 @@ img {
 .project-gallery-panels {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   overflow-x: auto;
   overflow-y: hidden;
@@ -2046,7 +1648,7 @@ img {
   scrollbar-width: none;
 }
 
-/* Desktop: disable user-initiated horizontal swiping/scrolling. Clicks change FALL. */
+/* Desktop: disable user-initiated horizontal swiping/scrolling. */
 @media (hover: hover) and (pointer: fine) {
   .project-gallery-panels {
     overflow-x: hidden;
@@ -2094,11 +1696,15 @@ img {
   background: transparent;
   color: inherit;
   font: inherit;
+  font-weight: 700;
   cursor: pointer;
   padding: 0.1rem 0;
   opacity: 0.85;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
+  font-size: clamp(0.68rem, 0.95vw, 0.88rem);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .project-timeline__item:hover,
@@ -2112,51 +1718,4 @@ img {
   opacity: 1;
   text-decoration: underline;
   text-underline-offset: 0.25em;
-}
-
-.caption-current:focus-visible {
-  animation-play-state: paused;
-  outline: 2px solid rgba(184, 134, 11, 0.65);
-  outline-offset: 3px;
-  text-decoration: underline;
-}
-
-@keyframes captionRadiate {
-
-  0%,
-  100% {
-    filter:
-      drop-shadow(0 0 10px rgba(184, 134, 11, 0.22)) drop-shadow(0 0 18px rgba(184, 134, 11, 0.12));
-    text-shadow:
-      0 0 4px #000,
-      0 0 6px #000,
-      0 1px 2px #000,
-      1px 0 2px #000,
-      0 1px 2px #000,
-      -1px 0 2px #000,
-      0 -1px 2px #000,
-      0 0 14px rgba(184, 134, 11, 0.30),
-      0 0 32px rgba(184, 134, 11, 0.18);
-  }
-
-  50% {
-    filter:
-      drop-shadow(0 0 18px rgba(184, 134, 11, 0.42)) drop-shadow(0 0 36px rgba(184, 134, 11, 0.22));
-    text-shadow:
-      0 0 4px #000,
-      0 0 6px #000,
-      0 1px 2px #000,
-      1px 0 2px #000,
-      0 1px 2px #000,
-      -1px 0 2px #000,
-      0 -1px 2px #000,
-      0 0 22px rgba(184, 134, 11, 0.55),
-      0 0 52px rgba(184, 134, 11, 0.28);
-  }
-}
-
-@media (max-width: 599px) {
-  .caption-current {
-    font-size: 0.875rem;
-  }
 }
