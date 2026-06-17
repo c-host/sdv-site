@@ -37,9 +37,56 @@ const PREVIEW_ORIGINS = String(process.env.SANITY_STUDIO_PREVIEW_ORIGINS || '')
   .filter(Boolean)
 const PREVIEW_ORIGIN =
   process.env.SANITY_STUDIO_PREVIEW_ORIGIN || PREVIEW_ORIGINS[0] || FALLBACK_ORIGINS[0]
-const ALLOW_ORIGINS = Array.from(
-  new Set(PREVIEW_ORIGINS.concat(FALLBACK_ORIGINS).concat(['http://127.0.0.1:*', 'http://localhost:*'])),
-)
+
+function previewBaseUrl(): URL {
+  const raw = PREVIEW_ORIGIN.trim()
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`
+  const url = new URL(withScheme.endsWith('/') ? withScheme : `${withScheme}/`)
+  return url
+}
+
+/** Path prefix when the site is not at domain root (e.g. GitHub Pages `/sdv-site/`). */
+function previewBasePath(): string {
+  const path = previewBaseUrl().pathname.replace(/\/$/, '')
+  return path === '/' ? '' : path
+}
+
+function previewHref(path: string): string {
+  const normalized = path.startsWith('/') ? path : `/${path}`
+  return `${previewBasePath()}${normalized}`
+}
+
+/** Route pattern for Presentation document matching (includes GitHub Pages subpath). */
+function previewRoute(path: string): string {
+  const base = previewBasePath()
+  if (path === '/' || path === '') {
+    return base ? `${base}/` : '/'
+  }
+  const normalized = path.startsWith('/') ? path : `/${path}`
+  return `${base}${normalized}`
+}
+
+const HOME_MAIN_DOCUMENTS_FILTER = `(_type == "homePage" && (_id == "${HOME_PAGE_DOC_ID}" || _id == "drafts.${HOME_PAGE_DOC_ID}")) || (_type == "info" && (_id == "infoPage" || _id == "drafts.infoPage"))`
+
+function previewOriginAllowList(): string[] {
+  const entries = PREVIEW_ORIGINS.concat([PREVIEW_ORIGIN])
+  const origins = entries.flatMap((entry) => {
+    try {
+      return [new URL(entry).origin]
+    } catch {
+      return [entry]
+    }
+  })
+  return Array.from(
+    new Set(
+      origins
+        .concat(FALLBACK_ORIGINS)
+        .concat(['http://127.0.0.1:*', 'http://localhost:*']),
+    ),
+  )
+}
+
+const ALLOW_ORIGINS = previewOriginAllowList()
 
 /** Typography preview locations for Presentation "used on N pages". */
 function typographyPreviewLocations() {
@@ -49,10 +96,10 @@ function typographyPreviewLocations() {
     'the-spontaneous-dance-falls',
   ]
   return [
-    {title: 'Home', href: '/'},
+    {title: 'Home', href: previewHref('/')},
     ...slugs.flatMap((slug) => [
-      {title: slug, href: `/project/${slug}/`},
-      {title: `${slug} — immersive`, href: `/immersive/${slug}/`},
+      {title: slug, href: previewHref(`/project/${slug}/`)},
+      {title: `${slug} — immersive`, href: previewHref(`/immersive/${slug}/`)},
     ]),
   ]
 }
@@ -60,26 +107,34 @@ function typographyPreviewLocations() {
 const presentationResolve: PresentationPluginOptions['resolve'] = {
   mainDocuments: defineDocuments([
     {
-      route: '/',
-      filter: `(_type == "homePage" && (_id == "${HOME_PAGE_DOC_ID}" || _id == "drafts.${HOME_PAGE_DOC_ID}")) || (_type == "info" && (_id == "infoPage" || _id == "drafts.infoPage"))`,
+      route: previewRoute('/'),
+      filter: HOME_MAIN_DOCUMENTS_FILTER,
     },
+    ...(previewBasePath()
+      ? [
+          {
+            route: previewBasePath(),
+            filter: HOME_MAIN_DOCUMENTS_FILTER,
+          },
+        ]
+      : []),
     {
-      route: '/immersive/:slug',
+      route: previewRoute('/immersive/:slug'),
       filter: ({params}) => `_type == "project" && coalesce(slug.current, slug) == $slug`,
       params: ({params}) => ({slug: params.slug || ''}),
     },
     {
-      route: '/immersive/:slug/',
+      route: previewRoute('/immersive/:slug/'),
       filter: ({params}) => `_type == "project" && coalesce(slug.current, slug) == $slug`,
       params: ({params}) => ({slug: params.slug || ''}),
     },
     {
-      route: '/project/:slug',
+      route: previewRoute('/project/:slug'),
       filter: ({params}) => `_type == "project" && coalesce(slug.current, slug) == $slug`,
       params: ({params}) => ({slug: params.slug || ''}),
     },
     {
-      route: '/project/:slug/',
+      route: previewRoute('/project/:slug/'),
       filter: ({params}) => `_type == "project" && coalesce(slug.current, slug) == $slug`,
       params: ({params}) => ({slug: params.slug || ''}),
     },
@@ -91,7 +146,7 @@ const presentationResolve: PresentationPluginOptions['resolve'] = {
       },
       resolve: (doc) => ({
         locations:
-          publishedId(doc?._id) === 'infoPage' ? [{title: 'Home (info panel)', href: '/'}] : [],
+          publishedId(doc?._id) === 'infoPage' ? [{title: 'Home (info panel)', href: previewHref('/')}] : [],
       }),
     }),
     project: defineLocations({
@@ -107,8 +162,8 @@ const presentationResolve: PresentationPluginOptions['resolve'] = {
         if (!slug) return {locations: []}
         return {
           locations: [
-            {title: doc?.title || slug, href: `/project/${slug}/`},
-            {title: `${doc?.title || slug} — immersive`, href: `/immersive/${slug}/`},
+            {title: doc?.title || slug, href: previewHref(`/project/${slug}/`)},
+            {title: `${doc?.title || slug} — immersive`, href: previewHref(`/immersive/${slug}/`)},
           ],
         }
       },
@@ -117,7 +172,7 @@ const presentationResolve: PresentationPluginOptions['resolve'] = {
       select: {_id: '_id'},
       resolve: (doc) => ({
         locations:
-          publishedId(doc?._id) === HOME_PAGE_DOC_ID ? [{title: 'Home', href: '/'}] : [],
+          publishedId(doc?._id) === HOME_PAGE_DOC_ID ? [{title: 'Home', href: previewHref('/')}] : [],
       }),
     }),
     siteTypography: defineLocations({
@@ -131,7 +186,7 @@ const presentationResolve: PresentationPluginOptions['resolve'] = {
 }
 
 function buildInitialPreviewUrl() {
-  const url = new URL('/', PREVIEW_ORIGIN)
+  const url = previewBaseUrl()
   url.searchParams.set('sdvPreview', '1')
   return url.toString()
 }

@@ -31,6 +31,7 @@
         }
       }
     } catch (e) { }
+    if (isPreviewEnabled()) return 'https://sdv-site.sanity.studio';
     return 'http://127.0.0.1:3333';
   }
 
@@ -263,11 +264,11 @@
   }
 
   async function sanityFetch(query, params) {
-    if (!canUseDraftPreview()) {
-      return sanityFetchCdn(query, params);
+    if (isPreviewEnabled()) {
+      var previewClient = await getSanityFetchClient();
+      return previewClient.fetch(query, params || {});
     }
-    var client = await getSanityFetchClient();
-    return client.fetch(query, params || {});
+    return sanityFetchCdn(query, params);
   }
 
   /** Local visual-editing bundle (studio-sdv-site: npm run build:visual-editing). */
