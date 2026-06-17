@@ -20,6 +20,8 @@
   var SANITY_DATASET = String(SANITY_CONFIG.dataset || 'production');
   var SANITY_API_VERSION = String(SANITY_CONFIG.apiVersion || '2025-02-19');
 
+  var isPreviewEnabled = SDV.isPreviewEnabled;
+
   function detectStudioUrl() {
     var configured = String(SANITY_CONFIG.studioUrl || '').trim();
     if (configured) return configured;
@@ -42,8 +44,6 @@
     info: null,
     homeProjects: null,
   };
-
-  var isPreviewEnabled = SDV.isPreviewEnabled;
 
   var PREVIEW_TOKEN_KEY = 'sdv.preview.token';
   var SDV_PREVIEW_TOKEN = '';
