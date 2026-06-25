@@ -349,10 +349,10 @@
       if (res.status === 403) {
         throw new Error(
           'Sanity API blocked this origin (CORS). Add ' +
-            window.location.origin +
-            ' under Project → API → CORS origins in sanity.io/manage. (' +
-            msg +
-            ')',
+          window.location.origin +
+          ' under Project → API → CORS origins in sanity.io/manage. (' +
+          msg +
+          ')',
         );
       }
       throw new Error(msg);
@@ -914,14 +914,14 @@
       var light = resolveFontRole(null, 'lightUi', sink);
       rules.push(
         ':root{--font:' +
-          base +
-          ';--font-prose:' +
-          prose +
-          ';--font-strong:' +
-          strong +
-          ';--font-light:' +
-          light +
-          ';}',
+        base +
+        ';--font-prose:' +
+        prose +
+        ';--font-strong:' +
+        strong +
+        ';--font-light:' +
+        light +
+        ';}',
       );
     }
     ['home', 'project', 'info'].forEach(function (key) {
@@ -932,13 +932,13 @@
         var family = resolveFontRole(item.override, item.siteRole, sink);
         rules.push(
           item.selector +
-            '{--' +
-            item.cssVar +
-            ':' +
-            family +
-            ';font-family:' +
-            family +
-            ',var(--font);}',
+          '{--' +
+          item.cssVar +
+          ':' +
+          family +
+          ';font-family:' +
+          family +
+          ',var(--font);}',
         );
       });
     });
@@ -962,11 +962,11 @@
     try {
       var doc = await sanityFetch(
         '*[_id in ["siteTypography", "drafts.siteTypography"]]|order(_updatedAt desc)[0]{' +
-          'baseUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
-          'prose{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
-          'strongUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
-          'lightUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}}' +
-          '}',
+        'baseUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
+        'prose{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
+        'strongUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}},' +
+        'lightUi{source,systemPreset,fontRef->{_id,cssFamily,fontWeight,fontStyle,fontFile{asset->{_ref,url}}}}' +
+        '}',
       );
       if (!doc) {
         siteTypographyDoc = null;
@@ -1293,8 +1293,10 @@
   function setupImmersiveNav(slug) {
     var back = document.querySelector('[data-immersive-back]');
     var index = document.querySelector('[data-immersive-index]');
-    if (back) back.setAttribute('href', withPreviewQuery('../../project/' + slug + '/'));
-    if (index) index.setAttribute('href', withPreviewQuery('../../'));
+    var root = SDV.siteRootHref();
+    var rootPath = root.endsWith('/') ? root : root + '/';
+    if (back) back.setAttribute('href', withPreviewQuery(rootPath + 'project/' + slug + '/'));
+    if (index) index.setAttribute('href', withPreviewQuery(rootPath));
   }
 
   async function loadImmersiveContent() {
@@ -1671,14 +1673,14 @@
     return navApi;
   }
 
-  function renderProjectNotFound(title, textHost, prefix) {
+  function renderProjectNotFound(title, textHost) {
     document.title = 'SDV — Not found';
     if (title) title.textContent = 'Not found';
     if (textHost) {
       textHost.innerHTML =
         '<p>This project could not be found. It may have been removed, ' +
         'or the link may be incorrect.</p>' +
-        '<p><a href="' + escapeHtml(prefix) + '">Return home</a></p>';
+        '<p><a href="' + escapeHtml(withPreviewQuery(SDV.siteRootHref())) + '">Return home</a></p>';
     }
     ['project-materials', 'project-links', 'project-gallery'].forEach(function (id) {
       var el = document.getElementById(id);
@@ -1710,7 +1712,7 @@
         { slug: slug },
       );
       if (!doc && !isPreviewEnabled()) {
-        renderProjectNotFound(title, textHost, prefix);
+        renderProjectNotFound(title, textHost);
         SDV.revealPendingView(document.querySelector('.view--project'));
         return;
       }
@@ -1873,10 +1875,10 @@
     } else {
       infoDoc = await sanityFetch(
         '*[_type=="info"][0]{' +
-          'bio, cv, body, _updatedAt,' +
-          fontRoleProjection('bioFont') + ',' +
-          fontRoleProjection('cvFont') +
-          '}',
+        'bio, cv, body, _updatedAt,' +
+        fontRoleProjection('bioFont') + ',' +
+        fontRoleProjection('cvFont') +
+        '}',
       );
       var normalized = normalizeSanityInfo(infoDoc || {});
       bioBody = normalized.bio;
@@ -1921,10 +1923,11 @@
       var catalogReady = loadMaterialCatalog();
       var isProjectShell = !!document.querySelector('.view--project');
       var isImmersiveShell = !!document.querySelector('.view--immersive');
-      var eagerTypography = isProjectShell || isImmersiveShell;
+      var isHomeShell = !!document.querySelector('.view--home');
+      var eagerTypography = isProjectShell || isImmersiveShell || isHomeShell;
 
       function typographyTask() {
-        return loadTypography().catch(function () {});
+        return loadTypography().catch(function () { });
       }
 
       var typographyReady;
@@ -1943,62 +1946,78 @@
         });
       }
 
-    loadInfoLinks().catch(function () {
-      var bioHost = document.getElementById('home-info-bio');
-      if (bioHost) bioHost.innerHTML = '<p>Bio failed to load.</p>';
-      var cvHost = document.getElementById('home-info-cv');
-      if (cvHost) cvHost.innerHTML = '';
-    });
-
-    if (isProjectShell) {
-      Promise.all([catalogReady, typographyReady])
-        .then(function () {
-          return loadProject();
-        })
-        .catch(function () {
-          var textHost = document.getElementById('project-overview-text');
-          if (textHost) textHost.innerHTML = '<p>Project content failed to load.</p>';
-          var galleryHost = document.getElementById('project-gallery');
-          if (galleryHost) galleryHost.querySelectorAll('img').forEach(function (el) { el.remove(); });
-          SDV.revealPendingView(document.querySelector('.view--project'));
+      function infoLinksTask() {
+        return loadInfoLinks().catch(function () {
+          var bioHost = document.getElementById('home-info-bio');
+          if (bioHost) bioHost.innerHTML = '<p>Bio failed to load.</p>';
+          var cvHost = document.getElementById('home-info-cv');
+          if (cvHost) cvHost.innerHTML = '';
         });
-    } else {
-      catalogReady.finally(function () {
-        loadProject().catch(function () {
-          var textHost = document.getElementById('project-overview-text');
-          if (textHost) textHost.innerHTML = '<p>Project content failed to load.</p>';
-          var galleryHost = document.getElementById('project-gallery');
-          if (galleryHost) galleryHost.querySelectorAll('img').forEach(function (el) { el.remove(); });
-        });
-        loadHomeMaterials().catch(function () { });
-      });
-    }
-
-    loadHome().catch(function () { });
-
-    if (isImmersiveShell) {
-      typographyReady
-        .then(function () {
-          return loadImmersiveContent();
-        })
-        .catch(function () {
-          loadImmersiveContent().catch(function () { });
-        });
-    } else {
-      loadImmersiveContent().catch(function () { });
-    }
-
-    if (isPreviewEnabled()) {
-      var lastPresentationPerspective = presentationApiPerspective();
-      function onPresentationNavigation() {
-        var next = presentationApiPerspective();
-        if (next === lastPresentationPerspective) return;
-        lastPresentationPerspective = next;
-        resetPreviewSanityClient();
-        refetchAllSanityDrivenContent().catch(function () { });
       }
-      window.addEventListener('popstate', onPresentationNavigation);
-    }
+
+      if (isHomeShell) {
+        Promise.all([
+          typographyReady,
+          catalogReady,
+          infoLinksTask(),
+          loadHome().catch(function () { }),
+          loadHomeMaterials().catch(function () { }),
+        ]).then(function () {
+          SDV.revealPendingView(document.querySelector('.view--home'));
+        }).catch(function () {
+          SDV.revealPendingView(document.querySelector('.view--home'));
+        });
+      }
+
+      if (isProjectShell) {
+        Promise.all([catalogReady, typographyReady])
+          .then(function () {
+            return loadProject();
+          })
+          .catch(function () {
+            var textHost = document.getElementById('project-overview-text');
+            if (textHost) textHost.innerHTML = '<p>Project content failed to load.</p>';
+            var galleryHost = document.getElementById('project-gallery');
+            if (galleryHost) galleryHost.querySelectorAll('img').forEach(function (el) { el.remove(); });
+            SDV.revealPendingView(document.querySelector('.view--project'));
+          });
+      } else {
+        catalogReady.finally(function () {
+          loadProject().catch(function () {
+            var textHost = document.getElementById('project-overview-text');
+            if (textHost) textHost.innerHTML = '<p>Project content failed to load.</p>';
+            var galleryHost = document.getElementById('project-gallery');
+            if (galleryHost) galleryHost.querySelectorAll('img').forEach(function (el) { el.remove(); });
+          });
+          if (!isHomeShell) {
+            loadHomeMaterials().catch(function () { });
+          }
+        });
+      }
+
+      if (isImmersiveShell) {
+        typographyReady
+          .then(function () {
+            return loadImmersiveContent();
+          })
+          .catch(function () {
+            loadImmersiveContent().catch(function () { });
+          });
+      } else {
+        loadImmersiveContent().catch(function () { });
+      }
+
+      if (isPreviewEnabled()) {
+        var lastPresentationPerspective = presentationApiPerspective();
+        function onPresentationNavigation() {
+          var next = presentationApiPerspective();
+          if (next === lastPresentationPerspective) return;
+          lastPresentationPerspective = next;
+          resetPreviewSanityClient();
+          refetchAllSanityDrivenContent().catch(function () { });
+        }
+        window.addEventListener('popstate', onPresentationNavigation);
+      }
     }
 
     if (isPreviewEnabled()) {

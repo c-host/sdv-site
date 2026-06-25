@@ -28,10 +28,16 @@ Adding, removing, or renaming a project needs **no developer action** — Cloudf
 
 ## Quick start (developers)
 
-**Site** — serve the `site/` folder from the repo root:
+**Site** — home page only:
 
 ```bash
 python -m http.server 3000 --directory site
+```
+
+**Project + immersive pages locally** — from the repo root (mirrors `site/_worker.js`, Node 18+):
+
+```bash
+npm run dev:site
 ```
 
 **Studio** — requires Node.js 22.12+:

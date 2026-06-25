@@ -1,0 +1,12 @@
+{
+  "name": "sdv-site",
+  "private": true,
+  "description": "Dev tooling for the SDV static site (site/ is deployed to Cloudflare Pages)",
+  "scripts": {
+    "dev:site": "node scripts/dev-server.mjs --port 3000",
+    "dev:site:wrangler": "wrangler pages dev site --port 3000"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

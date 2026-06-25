@@ -35,7 +35,7 @@ There is no repo-root `package.json` and nothing to `npm install` at the root. S
 
 ## Local development
 
-### Static site
+### Static site (home page only)
 
 Serve the `site/` folder from the repo root:
 
@@ -43,9 +43,49 @@ Serve the `site/` folder from the repo root:
 python -m http.server 3000 --directory site
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. The home page works as-is.
 
-> **Note:** `site/_worker.js` only runs on Cloudflare Pages. Locally, `/project/<slug>/` and `/immersive/<slug>/` URLs will 404 with `python -m http.server`. To exercise project/immersive pages locally, use a Cloudflare Pages preview deployment. The home page works locally as-is.
+> **Note:** `site/_worker.js` only runs on Cloudflare Pages (or Wrangler locally). With `python -m http.server`, `/project/<slug>/` and `/immersive/<slug>/` URLs **404**.
+
+### Full local routing (project + immersive pages)
+
+To test project and immersive pages with **live Sanity content** (required for styling/layout work), run the local dev server from the **repo root**. It mirrors `site/_worker.js` routing (no Sanity sync, no generated files):
+
+```bash
+npm run dev:site
+```
+
+Or with a custom port:
+
+```bash
+node scripts/dev-server.mjs --port 3099
+```
+
+Then open e.g. `http://127.0.0.1:3000/project/overlocked/` or `/immersive/overlocked/`.
+
+Content is fetched from Sanity at runtime, exactly as on the live site. Requires **Node.js 18+** (no extra dependencies).
+
+**Optional — Wrangler** (runs `_worker.js` via Cloudflare's local runtime; requires **Node.js 22+**):
+
+```bash
+npm run dev:site:wrangler
+```
+
+If Wrangler fails on Windows (workerd crash) or reports an unsupported Node version, use `npm run dev:site` instead.
+
+**Two-terminal workflow** (site + Studio Presentation preview):
+
+```bash
+# Terminal 1 — site with full routing
+npm run dev:site
+
+# Terminal 2 — Studio (requires Node.js 22.12+)
+cd sanity-studio && npm run dev
+```
+
+Add `http://127.0.0.1:3000` and `http://localhost:3000` to Sanity CORS (see below). Studio Presentation preview defaults to `http://127.0.0.1:3000` when running `npm run dev`.
+
+Alternative: push a branch and use a **Cloudflare Pages preview deploy** URL, or test against `https://sdv-site.pages.dev` directly (requires deploying site changes first).
 
 ### Sanity Studio
 

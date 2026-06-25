@@ -87,6 +87,10 @@ img {
   visibility: hidden;
 }
 
+.view--home.is-content-pending > * {
+  visibility: hidden;
+}
+
 /* ========== HOME ========== */
 .view--home {
   align-items: center;
@@ -346,6 +350,7 @@ html.sdv-preview .home-name-devoe {
 
 /* Hero name: mobile = stacked on crosshair; desktop = one row, Stacey | de Voe. */
 @media (min-width: 600px) {
+
   .home-name-stacey,
   .home-name-devoe {
     top: 50%;
@@ -367,6 +372,7 @@ html.sdv-preview .home-name-devoe {
 }
 
 @media (max-width: 599px) {
+
   .home-name-stacey,
   .home-name-devoe {
     left: 50%;
@@ -469,7 +475,7 @@ html.sdv-preview .home-name-devoe {
   background: transparent;
 }
 
-.home-info-section + .home-info-section {
+.home-info-section+.home-info-section {
   margin-top: 1.5rem;
 }
 

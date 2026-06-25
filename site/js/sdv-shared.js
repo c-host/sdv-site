@@ -440,6 +440,19 @@
     });
   }
 
+  function siteRootHref() {
+    var absRoot = effectiveSiteRoot();
+    if (absRoot) {
+      try {
+        var u = new URL(absRoot);
+        var p = u.pathname.replace(/\/+$/, '');
+        return p ? p + '/' : '/';
+      } catch (e) { }
+    }
+    var depth = getPathDepth();
+    return depth ? '../'.repeat(depth) : './';
+  }
+
   function whenFontsReady() {
     if (!document.fonts || !document.fonts.ready) {
       return Promise.resolve();
@@ -464,6 +477,7 @@
   window.SDV = {
     whenFontsReady: whenFontsReady,
     revealPendingView: revealPendingView,
+    siteRootHref: siteRootHref,
     getPathDepth: getPathDepth,
     rootPrefix: rootPrefix,
     assetUrl: assetUrl,
