@@ -10,7 +10,7 @@ Technical reference for maintaining the Stacey de Voe artist site. For a high-le
 | `site/index.html` | Home page |
 | `site/shell/project.html` | Project page shell, served for every `/project/<slug>/` URL (content from Sanity) |
 | `site/shell/immersive.html` | Immersive viewer shell, served for every `/immersive/<slug>/` URL (publication-tab images) |
-| `site/functions/_middleware.js` | Cloudflare Pages routing — serves shells for `/project/*` and `/immersive/*` without changing the browser URL |
+| `site/_worker.js` | Cloudflare Pages routing — serves shells for `/project/*` and `/immersive/*` before static assets |
 | `site/css/`, `site/js/` | Styles and front-end behaviour |
 | `site/js/content-loader.js` | Fetches Sanity content and updates the DOM |
 | `site/js/sanity-visual-editing.bundle.js` | Built bundle for Studio Presentation preview |
@@ -23,13 +23,13 @@ Technical reference for maintaining the Stacey de Voe artist site. For a high-le
 2. Visitor opens the site; `content-loader.js` fetches published documents from Sanity.
 3. If Sanity is unreachable, the site shows minimal built-in offline fallbacks (home nav only).
 
-**New or removed projects need no developer action.** Cloudflare Pages serves the shared shell for any `/project/<slug>/` or `/immersive/<slug>/` URL (via `functions/_middleware.js`), and `content-loader.js` loads the matching project from Sanity by slug at runtime. Adding a project in Sanity makes its page live; deleting it makes the page show a "not found" message.
+**New or removed projects need no developer action.** Cloudflare Pages serves the shared shell for any `/project/<slug>/` or `/immersive/<slug>/` URL (via `site/_worker.js`), and `content-loader.js` loads the matching project from Sanity by slug at runtime. Adding a project in Sanity makes its page live; deleting it makes the page show a "not found" message.
 
 All live content lives in Sanity.
 
 ## Hosting and routing
 
-The site is hosted on **Cloudflare Pages** with **no build step** — Cloudflare serves the `site/` folder directly (Build output directory = `site`, Build command = empty). Because only `site/` is published, the Studio source, scripts, and docs are never exposed on the live site. `site/functions/_middleware.js` serves the shared shells for `/project/*` and `/immersive/*` without changing the browser URL, so per-slug HTML folders are not needed.
+The site is hosted on **Cloudflare Pages** with **no build step** — Cloudflare serves the `site/` folder directly (Build output directory = `site`, Build command = empty). Because only `site/` is published, the Studio source, scripts, and docs are never exposed on the live site. `site/_worker.js` serves the shared shells for `/project/*` and `/immersive/*` before static assets, so per-slug HTML folders are not needed.
 
 There is no repo-root `package.json` and nothing to `npm install` at the root. Studio dependencies live in `sanity-studio/package.json`.
 
@@ -45,7 +45,7 @@ python -m http.server 3000 --directory site
 
 Open `http://localhost:3000`.
 
-> **Note:** `functions/_middleware.js` only runs on Cloudflare Pages. Locally, `/project/<slug>/` and `/immersive/<slug>/` URLs will 404 with `python -m http.server`. To exercise project/immersive pages locally, use a Cloudflare Pages preview deployment. The home page works locally as-is.
+> **Note:** `site/_worker.js` only runs on Cloudflare Pages. Locally, `/project/<slug>/` and `/immersive/<slug>/` URLs will 404 with `python -m http.server`. To exercise project/immersive pages locally, use a Cloudflare Pages preview deployment. The home page works locally as-is.
 
 ### Sanity Studio
 
@@ -71,7 +71,7 @@ Enable **Allow credentials** for each origin. Without CORS, the browser blocks A
 
 ## Adding and removing projects
 
-No developer action is required. Cloudflare Pages serves the shared shell for every `/project/<slug>/` and `/immersive/<slug>/` URL (see `functions/_middleware.js`), and `content-loader.js` resolves the slug against Sanity at runtime:
+No developer action is required. Cloudflare Pages serves the shared shell for every `/project/<slug>/` and `/immersive/<slug>/` URL (see `site/_worker.js`), and `content-loader.js` resolves the slug against Sanity at runtime:
 
 - **Add a project** in Sanity → its page is immediately live at `/project/<slug>/`.
 - **Delete a project** in Sanity → its page shows a "not found" message.
@@ -160,7 +160,7 @@ Cloudflare Pages settings (**Settings → Builds & deployments**):
 
 - **Build command:** *(empty)*
 - **Build output directory:** `site`
-- `site/functions/_middleware.js` handles `/project/*` and `/immersive/*` routing.
+- `site/_worker.js` handles `/project/*` and `/immersive/*` routing.
 
 Add the live URL to Sanity CORS (see above): `https://sdv-site.pages.dev`, plus any custom domain once configured. Path resolution at the domain root is automatic via `site/js/sdv-shared.js`.
 
@@ -175,7 +175,7 @@ Hosted Studio previews `https://sdv-site.pages.dev` by default (`sanity.config.t
 
 ## Do not delete
 
-- `site/shell/project.html`, `site/shell/immersive.html` — HTML shells served by the middleware for every project/immersive URL
-- `site/functions/_middleware.js` — without it, `/project/<slug>/` and `/immersive/<slug>/` URLs return 404 on Cloudflare Pages
+- `site/shell/project.html`, `site/shell/immersive.html` — HTML shells served for every project/immersive URL
+- `site/_worker.js` — without it, `/project/<slug>/` and `/immersive/<slug>/` URLs return 404 on Cloudflare Pages
 
 Generated folders not to commit: `sanity-studio/node_modules/`, `sanity-studio/dist/`, `sanity-studio/backups/`.

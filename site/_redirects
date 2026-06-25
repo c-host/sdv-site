@@ -1,2 +1,2 @@
-# Project and immersive routing is handled by functions/_middleware.js
+# Project and immersive routing is handled by site/_worker.js
 # (rewrites to /shell/*.html while keeping /project/<slug>/ in the browser URL).

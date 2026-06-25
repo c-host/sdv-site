@@ -1067,7 +1067,7 @@
     '\n' +
     '}';
 
-  var FALLBACK_SLUG_ORDER = ['the-spontaneous-dance-falls', 'under-the-needle-s-eye', 'overlocked'];
+  var FALLBACK_SLUG_ORDER = ['the-spontaneous-dance-falls', 'under-the-needles-eye', 'overlocked'];
 
   /** Offline fallback for home nav and materials (matches content/home.json). */
   function getOfflineHomeProjects() {
@@ -1091,7 +1091,7 @@
         _homeNavLabelOverride: '',
       },
       {
-        slug: 'under-the-needle-s-eye',
+        slug: 'under-the-needles-eye',
         header_title: "Under the Needle's Eye",
         home_materials: ['Textile', 'Metal', 'Archive', 'A/V'],
         materials: [],

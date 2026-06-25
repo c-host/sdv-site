@@ -103,7 +103,7 @@ const ALLOW_ORIGINS = previewOriginAllowList()
 function typographyPreviewLocations() {
   const slugs = [
     'overlocked',
-    'under-the-needle-s-eye',
+    'under-the-needles-eye',
     'the-spontaneous-dance-falls',
   ]
   return [
