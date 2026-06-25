@@ -1711,6 +1711,7 @@
       );
       if (!doc && !isPreviewEnabled()) {
         renderProjectNotFound(title, textHost, prefix);
+        SDV.revealPendingView(document.querySelector('.view--project'));
         return;
       }
       data = normalizeSanityProject(doc || {});
@@ -1809,6 +1810,8 @@
         buildFallTimeline(timelineHost, panelsHost, metaHost, panels, prefix);
       }
     }
+
+    SDV.revealPendingView(projectView);
   }
 
   function safeHref(href, prefix) {
@@ -1916,35 +1919,74 @@
     function startPageLoad() {
       preservePreviewLinks();
       var catalogReady = loadMaterialCatalog();
-    if (canUseDraftPreview()) {
-      loadTypography().catch(function () { });
-    } else {
-      function runTypography() {
-        loadTypography().catch(function () { });
+      var isProjectShell = !!document.querySelector('.view--project');
+      var isImmersiveShell = !!document.querySelector('.view--immersive');
+      var eagerTypography = isProjectShell || isImmersiveShell;
+
+      function typographyTask() {
+        return loadTypography().catch(function () {});
       }
-      if (typeof requestIdleCallback === 'function') {
-        requestIdleCallback(runTypography, { timeout: 2000 });
+
+      var typographyReady;
+      if (eagerTypography || canUseDraftPreview()) {
+        typographyReady = typographyTask();
       } else {
-        setTimeout(runTypography, 16);
+        typographyReady = new Promise(function (resolve) {
+          function run() {
+            typographyTask().finally(resolve);
+          }
+          if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(run, { timeout: 2000 });
+          } else {
+            setTimeout(run, 16);
+          }
+        });
       }
-    }
+
     loadInfoLinks().catch(function () {
       var bioHost = document.getElementById('home-info-bio');
       if (bioHost) bioHost.innerHTML = '<p>Bio failed to load.</p>';
       var cvHost = document.getElementById('home-info-cv');
       if (cvHost) cvHost.innerHTML = '';
     });
-    catalogReady.finally(function () {
-      loadProject().catch(function () {
-        var textHost = document.getElementById('project-overview-text');
-        if (textHost) textHost.innerHTML = '<p>Project content failed to load.</p>';
-        var galleryHost = document.getElementById('project-gallery');
-        if (galleryHost) galleryHost.querySelectorAll('img').forEach(function (el) { el.remove(); });
+
+    if (isProjectShell) {
+      Promise.all([catalogReady, typographyReady])
+        .then(function () {
+          return loadProject();
+        })
+        .catch(function () {
+          var textHost = document.getElementById('project-overview-text');
+          if (textHost) textHost.innerHTML = '<p>Project content failed to load.</p>';
+          var galleryHost = document.getElementById('project-gallery');
+          if (galleryHost) galleryHost.querySelectorAll('img').forEach(function (el) { el.remove(); });
+          SDV.revealPendingView(document.querySelector('.view--project'));
+        });
+    } else {
+      catalogReady.finally(function () {
+        loadProject().catch(function () {
+          var textHost = document.getElementById('project-overview-text');
+          if (textHost) textHost.innerHTML = '<p>Project content failed to load.</p>';
+          var galleryHost = document.getElementById('project-gallery');
+          if (galleryHost) galleryHost.querySelectorAll('img').forEach(function (el) { el.remove(); });
+        });
+        loadHomeMaterials().catch(function () { });
       });
-      loadHomeMaterials().catch(function () { });
-    });
+    }
+
     loadHome().catch(function () { });
-    loadImmersiveContent().catch(function () { });
+
+    if (isImmersiveShell) {
+      typographyReady
+        .then(function () {
+          return loadImmersiveContent();
+        })
+        .catch(function () {
+          loadImmersiveContent().catch(function () { });
+        });
+    } else {
+      loadImmersiveContent().catch(function () { });
+    }
 
     if (isPreviewEnabled()) {
       var lastPresentationPerspective = presentationApiPerspective();

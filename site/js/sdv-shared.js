@@ -440,7 +440,30 @@
     });
   }
 
+  function whenFontsReady() {
+    if (!document.fonts || !document.fonts.ready) {
+      return Promise.resolve();
+    }
+    return Promise.race([
+      document.fonts.ready,
+      new Promise(function (resolve) {
+        setTimeout(resolve, 1500);
+      }),
+    ]);
+  }
+
+  function revealPendingView(viewEl) {
+    if (!viewEl || !viewEl.classList.contains('is-content-pending')) return;
+    whenFontsReady().then(function () {
+      requestAnimationFrame(function () {
+        viewEl.classList.remove('is-content-pending');
+      });
+    });
+  }
+
   window.SDV = {
+    whenFontsReady: whenFontsReady,
+    revealPendingView: revealPendingView,
     getPathDepth: getPathDepth,
     rootPrefix: rootPrefix,
     assetUrl: assetUrl,

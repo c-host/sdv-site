@@ -76,6 +76,17 @@ img {
   display: none !important;
 }
 
+/* Hide shell chrome until typography + Sanity content are applied (content-loader.js / app.js). */
+.view--project.is-content-pending .project-split,
+.view--project.is-content-pending .project-zoom-wrap {
+  visibility: hidden;
+}
+
+.view--immersive.is-content-pending .immersive-nav,
+.view--immersive.is-content-pending .immersive-flyer__viewport {
+  visibility: hidden;
+}
+
 /* ========== HOME ========== */
 .view--home {
   align-items: center;

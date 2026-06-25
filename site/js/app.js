@@ -911,11 +911,16 @@
       if (loupeImg && !imageMatchesUrl(loupeImg, url)) loupeImg.setAttribute('src', url);
     }
 
+    function revealImmersiveView() {
+      SDV.revealPendingView(document.querySelector('.view--immersive'));
+    }
+
     function applyCurrentImage() {
       var displayUrl = currentImageUrl();
       if (!displayUrl) {
         state.imageReady = false;
         setFlyerLoading(false);
+        revealImmersiveView();
         return;
       }
 
@@ -930,13 +935,23 @@
 
         function markReady(isPreview) {
           mainImg.classList.remove('is-loading');
-          mainImg.classList.add('is-ready');
           mainImg.classList.toggle('is-preview', !!isPreview);
-          state.imageReady = !isPreview;
+          if (isPreview) {
+            mainImg.classList.remove('is-ready');
+            state.imageReady = false;
+            return;
+          }
+          mainImg.classList.add('is-ready');
+          state.imageReady = true;
           setFlyerLoading(false);
           clampPan();
           applyTransforms();
           updateLoupe();
+          requestAnimationFrame(function () {
+            clampPan();
+            applyTransforms();
+            revealImmersiveView();
+          });
         }
 
         if (
@@ -985,6 +1000,7 @@
             if (currentImageUrl() !== loadDisplay) return;
             setFlyerLoading(false);
             mainImg.classList.remove('is-loading');
+            revealImmersiveView();
           };
           full.src = loadDisplay;
         }
@@ -1005,6 +1021,7 @@
             mainImg.removeEventListener('load', onSingleLoad);
             mainImg.removeEventListener('error', onSingleError);
             updateLoupe();
+            revealImmersiveView();
           }
           mainImg.addEventListener('load', onSingleLoad);
           mainImg.addEventListener('error', onSingleError);
@@ -1661,12 +1678,6 @@
     }
 
     applyCurrentImage();
-    runWhenIdle(function () {
-      applyCurrentImage();
-        clampPan();
-        applyTransforms();
-        updateLoupe();
-    });
   }
 
   function initImmersivePage() {
@@ -1674,7 +1685,6 @@
     if (!root) return;
     var pathSlug = immersiveSlugFromPath();
     if (pathSlug) currentImmersiveSlug = pathSlug;
-    initFlyer();
   }
 
   window.addEventListener('sdv:immersive-ready', function (ev) {
