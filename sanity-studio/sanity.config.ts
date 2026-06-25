@@ -25,18 +25,29 @@ const ALLOWED_NEW_TEMPLATES = new Set([
   'fontUpload',
   'project',
 ])
-/** Preview iframe URL and allowed site origins. Defaults suit local dev; override via env when deploying Studio. */
-const FALLBACK_ORIGINS = [
-  'http://127.0.0.1:3000',
+/** Live site URL for Presentation preview (hosted Studio default). */
+const PRODUCTION_PREVIEW_ORIGIN = 'https://sdv-site.pages.dev'
+/** Local static site when running `npm run dev` in sanity-studio alongside python/http-server on :3000. */
+const LOCAL_DEV_PREVIEW_ORIGIN = 'http://127.0.0.1:3000'
+
+const ALLOWED_PREVIEW_ORIGINS = [
+  LOCAL_DEV_PREVIEW_ORIGIN,
   'http://localhost:3000',
-  'https://sdv-site.pages.dev',
+  PRODUCTION_PREVIEW_ORIGIN,
 ]
-const PREVIEW_ORIGINS = String(process.env.SANITY_STUDIO_PREVIEW_ORIGINS || '')
+
+const PREVIEW_ORIGINS_FROM_ENV = String(process.env.SANITY_STUDIO_PREVIEW_ORIGINS || '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean)
+
+const isLocalStudioDev = process.env.NODE_ENV === 'development'
+
+/** Env override → explicit list → local dev server → production site. */
 const PREVIEW_ORIGIN =
-  process.env.SANITY_STUDIO_PREVIEW_ORIGIN || PREVIEW_ORIGINS[0] || FALLBACK_ORIGINS[0]
+  process.env.SANITY_STUDIO_PREVIEW_ORIGIN ||
+  PREVIEW_ORIGINS_FROM_ENV[0] ||
+  (isLocalStudioDev ? LOCAL_DEV_PREVIEW_ORIGIN : PRODUCTION_PREVIEW_ORIGIN)
 
 function previewBaseUrl(): URL {
   const raw = PREVIEW_ORIGIN.trim()
@@ -69,7 +80,7 @@ function previewRoute(path: string): string {
 const HOME_MAIN_DOCUMENTS_FILTER = `(_type == "homePage" && (_id == "${HOME_PAGE_DOC_ID}" || _id == "drafts.${HOME_PAGE_DOC_ID}")) || (_type == "info" && (_id == "infoPage" || _id == "drafts.infoPage"))`
 
 function previewOriginAllowList(): string[] {
-  const entries = PREVIEW_ORIGINS.concat([PREVIEW_ORIGIN])
+  const entries = PREVIEW_ORIGINS_FROM_ENV.concat([PREVIEW_ORIGIN])
   const origins = entries.flatMap((entry) => {
     try {
       return [new URL(entry).origin]
@@ -80,7 +91,7 @@ function previewOriginAllowList(): string[] {
   return Array.from(
     new Set(
       origins
-        .concat(FALLBACK_ORIGINS)
+        .concat(ALLOWED_PREVIEW_ORIGINS)
         .concat(['http://127.0.0.1:*', 'http://localhost:*']),
     ),
   )
