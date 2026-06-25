@@ -131,7 +131,7 @@ Workflow: **Backup Sanity dataset** (`.github/workflows/backup-sanity-dataset.ym
 | Weekly | Documents **and** assets (images, fonts) |
 | Manual | **Actions → Backup Sanity dataset → Run workflow** (toggle assets if needed) |
 
-**One-time setup:** GitHub repo → **Settings → Secrets → Actions** → add `SANITY_AUTH_TOKEN` (Sanity **Viewer** token from [sanity.io/manage](https://sanity.io/manage) → API → Tokens).
+**One-time setup:** GitHub repo → **Settings → Secrets → Actions** → add `SANITY_AUTH_TOKEN` (Sanity **Viewer** token from [sanity.io/manage](https://sanity.io/manage) → API → Tokens). Paste the token only — no quotes, no spaces, no trailing newline.
 
 Download backups from the workflow run’s **Artifacts** section (retained 30 days). Store important exports elsewhere if you need longer retention.
 

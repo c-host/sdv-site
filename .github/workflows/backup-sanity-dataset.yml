@@ -23,11 +23,27 @@ concurrency:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    env:
-      SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
+
+      - name: Prepare Sanity token
+        env:
+          RAW_SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Secrets pasted into GitHub often include a trailing newline, which breaks Authorization headers.
+          TOKEN="$(printf '%s' "${RAW_SANITY_AUTH_TOKEN:-}" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          if [ -z "$TOKEN" ]; then
+            echo "::error::SANITY_AUTH_TOKEN secret is missing or empty."
+            exit 1
+          fi
+          if printf '%s' "$TOKEN" | grep -q $'[\r\n]'; then
+            echo "::error::SANITY_AUTH_TOKEN still contains newline characters after sanitizing."
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "SANITY_AUTH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
 
       - name: Setup Node
         uses: actions/setup-node@v4
