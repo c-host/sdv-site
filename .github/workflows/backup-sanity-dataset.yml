@@ -33,6 +33,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: sanity-studio/package-lock.json
+
+      - name: Install Studio dependencies
+        working-directory: sanity-studio
+        run: npm ci
 
       - name: Resolve backup options
         id: opts
@@ -49,6 +55,7 @@ jobs:
           echo "include_assets=$INCLUDE_ASSETS" >> "$GITHUB_OUTPUT"
 
       - name: Export dataset
+        id: export
         working-directory: sanity-studio
         run: |
           set -euo pipefail
@@ -67,8 +74,8 @@ jobs:
             ARGS+=(--assets)
           fi
 
-          echo "Running: npx --yes sanity@latest ${ARGS[*]}"
-          npx --yes sanity@latest "${ARGS[@]}"
+          echo "Running: npx sanity ${ARGS[*]}"
+          npx sanity "${ARGS[@]}"
 
           echo "backup_file=$OUT" >> "$GITHUB_OUTPUT"
 
