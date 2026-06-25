@@ -1,9 +1,2 @@
-# Cloudflare Pages routing.
-# /project/<slug>/ and /immersive/<slug>/ are served by shared shells in /shell/
-# (outside /project/* and /immersive/* so Cloudflare's extension-less URL
-# redirect on template.html cannot match the wildcard and loop).
-#
-# content-loader.js reads the slug from the browser URL and loads from Sanity.
-
-/project/*      /shell/project.html      200
-/immersive/*    /shell/immersive.html    200
+# Project and immersive routing is handled by functions/_middleware.js
+# (rewrites to /shell/*.html while keeping /project/<slug>/ in the browser URL).
