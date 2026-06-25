@@ -8,8 +8,8 @@ Technical reference for maintaining the Stacey de Voe artist site. For a high-le
 |------|---------|
 | `site/` | **The deployed website.** Cloudflare Pages serves this folder (and nothing else). |
 | `site/index.html` | Home page |
-| `site/project/template.html` | Project page shell, served for every `/project/<slug>/` URL (content from Sanity) |
-| `site/immersive/template.html` | Immersive viewer shell, served for every `/immersive/<slug>/` URL (publication-tab images) |
+| `site/shell/project.html` | Project page shell, served for every `/project/<slug>/` URL (content from Sanity) |
+| `site/shell/immersive.html` | Immersive viewer shell, served for every `/immersive/<slug>/` URL (publication-tab images) |
 | `site/_redirects` | Cloudflare Pages routing — rewrites `/project/*` and `/immersive/*` to the templates |
 | `site/css/`, `site/js/` | Styles and front-end behaviour |
 | `site/js/content-loader.js` | Fetches Sanity content and updates the DOM |
@@ -164,19 +164,18 @@ Cloudflare Pages settings (**Settings → Builds & deployments**):
 
 Add the live URL to Sanity CORS (see above): `https://sdv-site.pages.dev`, plus any custom domain once configured. Path resolution at the domain root is automatic via `site/js/sdv-shared.js`.
 
-For Studio **Presentation** preview against the live site, redeploy hosted Studio with the live URL:
+For Studio **Presentation** preview against the live site, redeploy hosted Studio after config changes:
 
 ```bash
 cd sanity-studio
-$env:SANITY_STUDIO_PREVIEW_ORIGIN="https://sdv-site.pages.dev"
 npm run deploy
 ```
 
-(`https://sdv-site.pages.dev` is already in the Studio's preview allow-list, so the deployed Studio can load it in Presentation regardless.)
+Hosted Studio previews `https://sdv-site.pages.dev` by default (`sanity.config.ts`). Local `npm run dev` previews `http://127.0.0.1:3000` automatically. Override with `SANITY_STUDIO_PREVIEW_ORIGIN` when testing a custom domain.
 
 ## Do not delete
 
-- `site/project/template.html`, `site/immersive/template.html` — served for every project/immersive URL
+- `site/shell/project.html`, `site/shell/immersive.html` — rewrite targets for every project/immersive URL (must live outside `/project/*` and `/immersive/*` to avoid redirect loops)
 - `site/_redirects` — without it, `/project/<slug>/` and `/immersive/<slug>/` URLs return 404 on Cloudflare Pages
 
 Generated folders not to commit: `sanity-studio/node_modules/`, `sanity-studio/dist/`, `sanity-studio/backups/`.
