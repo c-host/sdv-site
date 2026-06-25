@@ -49,7 +49,7 @@ jobs:
           echo "include_assets=$INCLUDE_ASSETS" >> "$GITHUB_OUTPUT"
 
       - name: Export dataset
-        working-directory: studio-sdv-site
+        working-directory: sanity-studio
         run: |
           set -euo pipefail
           if [ -z "${SANITY_AUTH_TOKEN:-}" ]; then
@@ -62,7 +62,7 @@ jobs:
           DATASET="production"
           OUT="../backups/sanity-${DATASET}-${STAMP}.tar.gz"
 
-          ARGS=(sanity dataset export "$DATASET" "$OUT")
+          ARGS=(dataset export "$DATASET" "$OUT")
           if [ "${{ steps.opts.outputs.include_assets }}" = "true" ]; then
             ARGS+=(--assets)
           fi

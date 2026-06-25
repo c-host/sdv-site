@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SDV</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml" />
+  <script src="../../js/bg-boot.js"></script>
+  <link rel="stylesheet" href="../../css/styles.css" />
+  <script src="../../js/presentation-boot.js"></script>
+</head>
+
+<body>
+  <section class="view view--immersive immersive-page">
+    <nav class="immersive-nav">
+      <a href="#" class="immersive-back-overview" data-immersive-back aria-label="Back to project overview">←</a>
+      <a href="#" class="immersive-index-link" data-immersive-index>index →</a>
+    </nav>
+
+    <div id="immersive-content" class="immersive-main" aria-label="Immersive content">
+      <div class="immersive-inner" id="immersive-inner">
+        <div class="immersive-flyer" data-flyer-root>
+          <div class="immersive-flyer__viewport" role="application"
+            aria-label="Publication image viewer. Drag to pan. Toolbar: previous, next, zoom in, zoom out.">
+            <div class="immersive-flyer__loupe" hidden>
+              <div class="immersive-flyer__loupe-disk">
+                <div class="immersive-flyer__loupe-clip">
+                  <div class="immersive-flyer__loupe-strip">
+                    <img alt="" draggable="false" />
+                  </div>
+                </div>
+              </div>
+              <svg class="immersive-flyer__loupe-ring" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <circle cx="10" cy="10" r="5" fill="none" stroke="currentColor" stroke-width="1.5" />
+                <path d="M14 14l5 5" fill="none" stroke="currentColor" stroke-width="1.5" />
+              </svg>
+            </div>
+            <div class="immersive-flyer__hud" aria-hidden="true">
+              <div class="immersive-flyer__hud-panel">
+                <div class="immersive-flyer__hud-tools">
+                  <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="prev"
+                    aria-label="Previous image" title="Previous image">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <path d="M14 6l-6 6 6 6" />
+                    </svg>
+                  </button>
+                  <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="next"
+                    aria-label="Next image" title="Next image">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <path d="M10 6l6 6-6 6" />
+                    </svg>
+                  </button>
+                  <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="zoom-in"
+                    aria-label="Zoom in" title="Zoom in">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <circle cx="10" cy="10" r="5" />
+                      <path d="M14 14l5 5" />
+                      <path d="M10 8v4M8 10h4" />
+                    </svg>
+                  </button>
+                  <button type="button" class="immersive-flyer__tool-btn" data-flyer-action="zoom-out"
+                    aria-label="Zoom out" title="Zoom out">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <circle cx="10" cy="10" r="5" />
+                      <path d="M14 14l5 5" />
+                      <path d="M7 10h6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="immersive-flyer__stage">
+              <div class="immersive-flyer__loading" aria-hidden="true"></div>
+              <div class="immersive-flyer__pan">
+                <div class="immersive-flyer__sheet">
+                  <figure class="immersive-flyer__figure">
+                    <img class="immersive-flyer__img" alt="Publication image" draggable="false" decoding="async" />
+                  </figure>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="../../js/sdv-shared.js"></script>
+  <script src="../../js/content-loader.js"></script>
+  <script src="../../js/app.js"></script>
+</body>
+
+</html>

@@ -1,21 +1,21 @@
 # Developer guide
 
-Technical reference for maintaining the Stacey de Voe artist site. For a high-level overview, see [README.md](README.md). For Studio-specific commands and schema, see [studio-sdv-site/README.md](studio-sdv-site/README.md).
+Technical reference for maintaining the Stacey de Voe artist site. For a high-level overview, see [README.md](README.md). For Studio-specific commands and schema, see [sanity-studio/README.md](sanity-studio/README.md).
 
 ## Repository layout
 
 | Path | Purpose |
 |------|---------|
-| `index.html` | Home page |
-| `project/{slug}/index.html` | Project page shell (content from Sanity) |
-| `immersive/{slug}/index.html` | Immersive viewer shell (publication-tab images) |
-| `css/`, `js/` | Styles and front-end behaviour |
-| `js/content-loader.js` | Fetches Sanity content and updates the DOM |
-| `js/sanity-visual-editing.bundle.js` | Built bundle for Studio Presentation preview |
-| `studio-sdv-site/` | Sanity Studio (schema, editor UI, deploy) |
-| `scripts/` | Page sync — creates/removes `project/` and `immersive/` folders from Sanity slugs |
-| `.github/workflows/` | GitHub Actions (page sync, automated Sanity backups) |
-| `package.json` | Root npm scripts for page sync (see below) |
+| `site/` | **The deployed website.** Cloudflare Pages serves this folder (and nothing else). |
+| `site/index.html` | Home page |
+| `site/project/template.html` | Project page shell, served for every `/project/<slug>/` URL (content from Sanity) |
+| `site/immersive/template.html` | Immersive viewer shell, served for every `/immersive/<slug>/` URL (publication-tab images) |
+| `site/_redirects` | Cloudflare Pages routing — rewrites `/project/*` and `/immersive/*` to the templates |
+| `site/css/`, `site/js/` | Styles and front-end behaviour |
+| `site/js/content-loader.js` | Fetches Sanity content and updates the DOM |
+| `site/js/sanity-visual-editing.bundle.js` | Built bundle for Studio Presentation preview |
+| `sanity-studio/` | Sanity Studio (schema, editor UI, deploy) — **not** part of the deployed site |
+| `.github/workflows/` | GitHub Actions (automated Sanity backups) |
 
 ## How content flows
 
@@ -23,41 +23,36 @@ Technical reference for maintaining the Stacey de Voe artist site. For a high-le
 2. Visitor opens the site; `content-loader.js` fetches published documents from Sanity.
 3. If Sanity is unreachable, the site shows minimal built-in offline fallbacks (home nav only).
 
-**New or removed projects** need an extra step: run page sync so GitHub Pages has matching folders (see below). Day-to-day text and image edits do not.
+**New or removed projects need no developer action.** Cloudflare Pages serves the shared template shell for any `/project/<slug>/` or `/immersive/<slug>/` URL (via `_redirects`), and `content-loader.js` loads the matching project from Sanity by slug at runtime. Adding a project in Sanity makes its page live; deleting it makes the page show a "not found" message.
 
 All live content lives in Sanity.
 
-## Root `package.json`
+## Hosting and routing
 
-The repo root has a small `package.json` with **no dependencies** — it exists so you can run maintenance scripts from the repo root without `cd` into `studio-sdv-site/`.
+The site is hosted on **Cloudflare Pages** with **no build step** — Cloudflare serves the `site/` folder directly (Build output directory = `site`, Build command = empty). Because only `site/` is published, the Studio source, scripts, and docs are never exposed on the live site. The `site/_redirects` file rewrites every `/project/*` and `/immersive/*` request to the corresponding template, so per-slug HTML folders are not needed.
 
-| Script | What it does |
-|--------|----------------|
-| `npm run sync:pages` | Reads project slugs from Sanity and syncs `project/{slug}/` and `immersive/{slug}/` HTML shells from templates. Removes folders for deleted slugs. |
-| `npm run sync:pages:ci` | Same sync, Sanity-only mode (used by the GitHub Actions workflow). |
-
-Requires Node.js and network access to Sanity. The same `sync:pages` script is also available from `studio-sdv-site/` (`npm run sync:pages` there calls the same files).
-
-You do **not** need `npm install` at the repo root — there are no packages to install. Studio dependencies live in `studio-sdv-site/package.json`.
+There is no repo-root `package.json` and nothing to `npm install` at the root. Studio dependencies live in `sanity-studio/package.json`.
 
 ## Local development
 
 ### Static site
 
-From the repo root:
+Serve the `site/` folder from the repo root:
 
 ```bash
-python -m http.server 3000
+python -m http.server 3000 --directory site
 ```
 
 Open `http://localhost:3000`.
+
+> **Note:** `_redirects` is a Cloudflare Pages feature and is not honoured by `python -m http.server`. Locally, `/project/<slug>/` and `/immersive/<slug>/` URLs will 404. To exercise project/immersive pages locally, use a server that supports rewrites (or test on a Cloudflare Pages preview deployment). The home page works locally as-is.
 
 ### Sanity Studio
 
 Requires **Node.js 22.12+**.
 
 ```bash
-cd studio-sdv-site
+cd sanity-studio
 npm install
 npm run dev
 ```
@@ -70,23 +65,17 @@ In [sanity.io/manage](https://sanity.io/manage) → your project → **API** →
 
 - `http://localhost:3000`
 - `http://127.0.0.1:3000`
-- Your production site URL (e.g. `https://c-host.github.io` for GitHub Pages)
+- Your production site URL (`https://sdv-site.pages.dev`, plus any custom domain once configured)
 
 Enable **Allow credentials** for each origin. Without CORS, the browser blocks API requests and the site falls back to offline content.
 
-## Sync project page shells
+## Adding and removing projects
 
-When a project is **added**, **removed**, or its **URL slug** changes:
+No developer action is required. Cloudflare Pages serves the shared template for every `/project/<slug>/` and `/immersive/<slug>/` URL (see `_redirects`), and `content-loader.js` resolves the slug against Sanity at runtime:
 
-```bash
-npm run sync:pages
-```
-
-(Run from the repo root, or `npm run sync:pages` from `studio-sdv-site/`.)
-
-This writes `project/{slug}/index.html` and `immersive/{slug}/index.html` from templates and removes folders for deleted slugs.
-
-**CI:** GitHub Actions workflow **Sync Sanity pages** (`.github/workflows/sync-sanity-pages.yml`) runs the same sync and commits changes. Trigger manually from **Actions → Sync Sanity pages → Run workflow**, or via an optional Sanity webhook (documented in the workflow file).
+- **Add a project** in Sanity → its page is immediately live at `/project/<slug>/`.
+- **Delete a project** in Sanity → its page shows a "not found" message.
+- **Change a slug** → the new URL works immediately; the old URL shows "not found".
 
 ## Backup and recovery
 
@@ -108,7 +97,7 @@ Download backups from the workflow run’s **Artifacts** section (retained 30 da
 
 ### Manual backup (local)
 
-From `studio-sdv-site/` with a token that can read the dataset:
+From `sanity-studio/` with a token that can read the dataset:
 
 ```bash
 # PowerShell
@@ -116,7 +105,7 @@ $env:SANITY_AUTH_TOKEN="your-viewer-token"
 npm run export:dataset
 ```
 
-This writes `studio-sdv-site/backups/sanity-production-YYYY-MM-DD.tar.gz` with assets included. The `backups/` folder is gitignored.
+This writes `sanity-studio/backups/sanity-production-YYYY-MM-DD.tar.gz` with assets included. The `backups/` folder is gitignored.
 
 Or directly:
 
@@ -132,56 +121,62 @@ Run before schema changes, before handoff, and periodically on request.
 **Warning:** import **replaces** the target dataset. Test on a copy dataset first if unsure.
 
 ```bash
-cd studio-sdv-site
+cd sanity-studio
 # PowerShell — use an Editor or Admin token
 $env:SANITY_AUTH_TOKEN="your-write-token"
 npx sanity dataset import backups/sanity-production-YYYYMMDD.tar.gz production --replace
 ```
 
-After restore, redeploy hosted Studio if needed (`npm run deploy` from `studio-sdv-site/`). The static site picks up published content on the next page load — no redeploy required for content-only changes.
+After restore, redeploy hosted Studio if needed (`npm run deploy` from `sanity-studio/`). The static site picks up published content on the next page load — no redeploy required for content-only changes.
 
-More detail: [studio-sdv-site/docs/recovery.md](studio-sdv-site/docs/recovery.md).
+More detail: [sanity-studio/docs/recovery.md](sanity-studio/docs/recovery.md).
 
 ## Sanity project configuration
 
 The default project ID and dataset are set in:
 
-- `studio-sdv-site/sanity.config.ts`
-- `studio-sdv-site/sanity.cli.ts`
-- `js/content-loader.js` (overridable via `window.SDV_SANITY_CONFIG` before scripts load)
-- `scripts/fetch-project-slugs.mjs`
+- `sanity-studio/sanity.config.ts`
+- `sanity-studio/sanity.cli.ts`
+- `site/js/content-loader.js` (overridable via `window.SDV_SANITY_CONFIG` before scripts load)
 
-After the creating Sanity project, update these IDs and redeploy Studio.
+When pointing the site at a different Sanity project, update these IDs and redeploy Studio.
 
 ## Rebuild visual-editing bundle
 
-After upgrading `@sanity/visual-editing` in `studio-sdv-site`:
+After upgrading `@sanity/visual-editing` in `sanity-studio`:
 
 ```bash
-cd studio-sdv-site
+cd sanity-studio
 npm run build:visual-editing
 ```
 
-Commit the updated `js/sanity-visual-editing.bundle.js`.
+Commit the updated `site/js/sanity-visual-editing.bundle.js`.
 
-## Deploying to GitHub Pages
+## Deploying to Cloudflare Pages
 
-1. Push this repo to GitHub.
-2. **Settings → Pages → Build and deployment → Source:** Deploy from branch `main`, folder `/ (root)`.
-3. Add the Pages URL to Sanity CORS (see above).
-4. Site URL will be `https://<user>.github.io/<repo-name>/` (e.g. `https://c-host.github.io/sdv-site/`). Path resolution is automatic via `js/sdv-shared.js`.
+The site is connected to Cloudflare Pages with **no build step**: it serves the `site/` folder. Pushing to the production branch on GitHub triggers an automatic deploy.
 
-For Studio **Presentation** preview against the live site, redeploy hosted Studio with the Pages URL:
+Cloudflare Pages settings (**Settings → Builds & deployments**):
+
+- **Build command:** *(empty)*
+- **Build output directory:** `site`
+- The `site/_redirects` file handles `/project/*` and `/immersive/*` routing.
+
+Add the live URL to Sanity CORS (see above): `https://sdv-site.pages.dev`, plus any custom domain once configured. Path resolution at the domain root is automatic via `site/js/sdv-shared.js`.
+
+For Studio **Presentation** preview against the live site, redeploy hosted Studio with the live URL:
 
 ```bash
-cd studio-sdv-site
-$env:SANITY_STUDIO_PREVIEW_ORIGIN="https://c-host.github.io/sdv-site"
+cd sanity-studio
+$env:SANITY_STUDIO_PREVIEW_ORIGIN="https://sdv-site.pages.dev"
 npm run deploy
 ```
 
+(`https://sdv-site.pages.dev` is already in the Studio's preview allow-list, so the deployed Studio can load it in Presentation regardless.)
+
 ## Do not delete
 
-- `project/template.html`, `immersive/template.html`
-- Synced `project/{slug}/` and `immersive/{slug}/` folders (unless page sync has pruned them)
+- `site/project/template.html`, `site/immersive/template.html` — served for every project/immersive URL
+- `site/_redirects` — without it, `/project/<slug>/` and `/immersive/<slug>/` URLs return 404 on Cloudflare Pages
 
-Generated folders not to commit: `studio-sdv-site/node_modules/`, `studio-sdv-site/dist/`, `studio-sdv-site/backups/`.
+Generated folders not to commit: `sanity-studio/node_modules/`, `sanity-studio/dist/`, `sanity-studio/backups/`.

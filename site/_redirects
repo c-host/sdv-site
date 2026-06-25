@@ -1,0 +1,11 @@
+# Cloudflare Pages routing.
+# Any /project/<slug>/ or /immersive/<slug>/ URL is served by the shared
+# template shell, which then loads content from Sanity by slug at runtime.
+# This means new pages appear automatically when the client adds a project in
+# Sanity — no per-slug HTML files and no build/sync step required.
+#
+# Existing static files (index.html, css/, js/, the template files themselves)
+# always win over these rules, so only unknown slugs hit the rewrites.
+
+/project/*      /project/template.html      200
+/immersive/*    /immersive/template.html    200

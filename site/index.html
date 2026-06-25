@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SDV - Artist Profile</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <script src="js/bg-boot.js"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/presentation-boot.js"></script>
+</head>
+
+<body>
+  <section class="view view--home">
+    <div class="home-sdv-mark" aria-hidden="true">SDV</div>
+    <div class="home-material-filter" id="home-material-filter" aria-label="Materials" aria-live="polite"></div>
+    <div class="home-info-filter" id="home-info-filter" aria-label="Info">
+      <button type="button" class="home-info-toggle" id="home-info-btn" aria-expanded="false" aria-controls="home-info-panel">INFO</button>
+      <div class="home-info-status" id="home-info-status" aria-live="polite"></div>
+      <div class="home-info-row" id="home-info-row" role="group" aria-label="Filter info sections">
+        <button type="button" class="home-info-filter-btn" data-info-key="bio" aria-pressed="false">Bio</button>
+        <button type="button" class="home-info-filter-btn" data-info-key="cv" aria-pressed="false">CV</button>
+      </div>
+    </div>
+    <div class="home-line home-line--vertical" aria-hidden="true"></div>
+    <div class="home-line home-line--horizontal" aria-hidden="true"></div>
+    <div class="home-name-stacey" id="home-hero-line1" aria-hidden="true"></div>
+    <div class="home-name-devoe" id="home-hero-line2" aria-hidden="true"></div>
+    <aside class="home-info-panel" id="home-info-panel" aria-hidden="true">
+      <div class="home-info-scroll">
+        <div id="home-info-bio" class="home-info-section"></div>
+        <div id="home-info-cv" class="home-info-section"></div>
+      </div>
+    </aside>
+    <div class="home-main">
+      <nav class="home-projects" aria-label="Projects"></nav>
+    </div>
+  </section>
+  <script src="js/sdv-shared.js"></script>
+  <script src="js/content-loader.js"></script>
+  <script src="js/app.js"></script>
+</body>
+
+</html>

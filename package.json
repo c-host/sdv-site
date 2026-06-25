@@ -1,9 +1,0 @@
-{
-  "name": "sdv-site",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "sync:pages": "node scripts/sync-static-pages.mjs",
-    "sync:pages:ci": "node scripts/sync-static-pages.mjs --sanity-only"
-  }
-}
