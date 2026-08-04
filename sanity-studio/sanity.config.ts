@@ -26,7 +26,9 @@ const ALLOWED_NEW_TEMPLATES = new Set([
   'project',
 ])
 /** Live site URL for Presentation preview (hosted Studio default). */
-const PRODUCTION_PREVIEW_ORIGIN = 'https://sdv-site.pages.dev'
+const PRODUCTION_PREVIEW_ORIGIN = 'https://www.stacey-devoe.com'
+/** Cloudflare Pages URL — still allowed for preview / fallback. */
+const PAGES_DEV_ORIGIN = 'https://sdv-site.pages.dev'
 /** Local static site when running `npm run dev` in sanity-studio alongside python/http-server on :3000. */
 const LOCAL_DEV_PREVIEW_ORIGIN = 'http://127.0.0.1:3000'
 
@@ -34,6 +36,7 @@ const ALLOWED_PREVIEW_ORIGINS = [
   LOCAL_DEV_PREVIEW_ORIGIN,
   'http://localhost:3000',
   PRODUCTION_PREVIEW_ORIGIN,
+  PAGES_DEV_ORIGIN,
 ]
 
 const PREVIEW_ORIGINS_FROM_ENV = String(process.env.SANITY_STUDIO_PREVIEW_ORIGINS || '')

@@ -52,7 +52,7 @@ Optional overrides (only when needed):
 
 | Variable | When |
 |----------|------|
-| `SANITY_STUDIO_PREVIEW_ORIGIN` | Optional override for Presentation preview URL (e.g. a custom domain). Defaults: production site when deployed, `http://127.0.0.1:3000` when running `npm run dev`. |
+| `SANITY_STUDIO_PREVIEW_ORIGIN` | Optional override for Presentation preview URL. Defaults: `https://www.stacey-devoe.com` when deployed, `http://127.0.0.1:3000` when running `npm run dev`. |
 | `SANITY_AUTH_TOKEN` | CLI export/import or GitHub Actions backups — **shell or GitHub secret**, never `SANITY_STUDIO_*` |
 
 **Automated backups:** GitHub → Settings → Secrets → `SANITY_AUTH_TOKEN` (Viewer role). See `docs/recovery.md`.
